@@ -1,0 +1,4 @@
+interface:
+  display_name: "MoneyLens Automation"
+  short_description: "Daily card and UPI activity in your spending report"
+  default_prompt: "Use $moneylens-automation to fetch new Gmail card and UPI debit/credit alerts and statements and update the data in my existing report."
