@@ -102,6 +102,42 @@ class PersonalizationTests(unittest.TestCase):
         for value in ('Example Retail Company','Example Mutual Funds Autopay','Indian Railways','Example Mall','paytm.123@example','Q123456','TEST'):
             self.assertFalse(name_like(value),value)
 
+    def test_saved_legacy_category_rule_matches_normalized_imports(self):
+        saved=[{'id':'work-software','label':'Work software','category':'Work expenses','note':'Work tools',
+                'when':{'category_in':['Software and subscriptions'],'merchant_contains':['Synthetic']}}]
+        self.set_rules(saved)
+        self.db.commit()
+        self.db.close()
+        self.db=connect(self.root)
+        p=fixture('new-software-import')
+        p['transactions'][0]['category']='Software and subscriptions'
+        path=self.root/'input.json';path.write_text(json.dumps(p));stage(self.db,path)
+        source=records(self.db)
+        self.assertEqual(source[0]['payload']['transactions'][0]['category'],'Subscriptions')
+        effective=decorate(self.db,source)[0]['payload']['transactions'][0]
+        self.assertEqual(effective['category'],'Work expenses')
+        self.assertEqual(effective['rule_id'],'work-software')
+        self.assertEqual(effective['personal_context'],'Work tools')
+        self.assertEqual(records(self.db),source)
+        persisted=json.loads(self.db.execute("SELECT value FROM runtime_meta WHERE key='personal_rules'").fetchone()[0])
+        self.assertEqual(persisted,saved)
+
+    def test_category_filters_match_aliases_on_legacy_rows(self):
+        aliases=['Software and subscriptions','Software & subscriptions','Subscriptions',' software  AND subscriptions ']
+        for filter_category in aliases:
+            self.set_rules([{'id':'work-software','label':'Work software','category':'Work expenses','note':'Work tools',
+                             'when':{'category_in':['Other',filter_category],'merchant_contains':['Synthetic']}}])
+            for source_category in aliases:
+                with self.subTest(filter=filter_category,source=source_category):
+                    p=normalize(fixture());p['transactions'][0]['category']=source_category
+                    source=[{'id':'legacy','payload':p}]
+                    before=copy.deepcopy(source)
+                    rows=decorate(self.db,source)[0]['payload']['transactions']
+                    self.assertEqual(rows[0]['category'],'Work expenses')
+                    self.assertEqual(rows[1]['category'],'Groceries')
+                    self.assertEqual(rows[2]['category'],'Credit card payments')
+                    self.assertEqual(source,before)
+
     def test_personal_note_is_safe_in_standalone_html(self):
         from dashboard import render
         from ledger import assessment

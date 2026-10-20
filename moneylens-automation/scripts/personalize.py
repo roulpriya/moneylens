@@ -62,7 +62,9 @@ def matches(rule, row, payload):
     if not all(v.casefold() in merchant for v in c.get('merchant_contains_all', [])): return False
     if any(v.casefold() in merchant for v in c.get('merchant_excludes', [])): return False
     if 'name_like' in c and name_like(row['merchant']) != c['name_like']: return False
-    if 'category_in' in c and row['category'] not in c['category_in']: return False
+    if 'category_in' in c:
+        categories = {canonical_category(value) for value in c['category_in']}
+        if canonical_category(row['category']) not in categories: return False
     channel = row.get('channel', 'upi' if payload.get('account_type') == 'bank_account' or re.match(r'^(?:EMI\s+)?UPI\b', row['merchant'], re.I) else 'card')
     if 'channel' in c and channel != c['channel']: return False
     if 'kinds' in c and row['kind'] not in c['kinds']: return False
