@@ -65,22 +65,60 @@ func prompt(_ filename: String) throws -> String {
     return field.stringValue
 }
 
+func derivedPasswords() throws -> [String] {
+    let raw = FileHandle.standardInput.readDataToEndOfFile()
+    guard raw.count <= 16_384,
+          let data = try JSONSerialization.jsonObject(with: raw) as? [String: Any],
+          let attributes = data["attributes"] as? [String: String],
+          let recipes = data["recipes"] as? [String], !recipes.isEmpty, recipes.count <= 3 else {
+        throw Failure.message("Expected a small stdin JSON object with known attributes and at most three document-supported recipes.")
+    }
+    let name = (attributes["full_name"] ?? "").filter { $0.isLetter }
+    let prefix = String(name.prefix(4))
+    let card = attributes["card_last4"] ?? ""
+    var birthday = attributes["birth_ddmm"] ?? ""
+    if birthday.isEmpty, let birth = attributes["birth_date"] {
+        let parts = birth.split(separator: "-")
+        if parts.count == 3 { birthday = String(parts[2]) + String(parts[1]) }
+    }
+    var result: [String] = []
+    for recipe in recipes {
+        var value: String?
+        switch recipe {
+        case "name4_upper_card_last4":
+            if prefix.count == 4 && card.count == 4 && card.allSatisfy({ $0.isNumber }) { value = prefix.uppercased() + card }
+        case "name4_lower_birth_ddmm":
+            if prefix.count == 4 && birthday.count == 4 && birthday.allSatisfy({ $0.isNumber }) { value = prefix.lowercased() + birthday }
+        case "name4_upper_birth_ddmm":
+            if prefix.count == 4 && birthday.count == 4 && birthday.allSatisfy({ $0.isNumber }) { value = prefix.uppercased() + birthday }
+        default:
+            throw Failure.message("Unsupported recipe. Use the exact issuer instructions or the local masked password prompt.")
+        }
+        if let value = value, !result.contains(value) { result.append(value) }
+    }
+    return result
+}
+
 func run() throws {
     umask(0o077)
     let args = Array(CommandLine.arguments.dropFirst())
     if args == ["--help"] || args.isEmpty {
-        print("pdf-extract --input PDF --output JSON --account OPAQUE-SCOPE [--previous-account OLD-SCOPE] [--probe] [--no-prompt]\nMetadata only: --keychain-status --account OPAQUE-SCOPE")
+        print("pdf-extract --input PDF --output JSON --account OPAQUE-SCOPE [--previous-account OLD-SCOPE] [--probe] [--no-prompt] [--derive-from-stdin]\nMetadata only: --keychain-status --account OPAQUE-SCOPE\nSynthetic verification without Keychain: --input PDF --verify-derived-only (JSON on stdin)")
         return
     }
     var options: [String: String] = [:]
     var probe = false
     var noPrompt = false
     var keychainStatus = false
+    var derive = false
+    var verifyDerived = false
     var index = 0
     while index < args.count {
         if args[index] == "--probe" { probe = true; index += 1; continue }
         if args[index] == "--no-prompt" { noPrompt = true; index += 1; continue }
         if args[index] == "--keychain-status" { keychainStatus = true; index += 1; continue }
+        if args[index] == "--derive-from-stdin" { derive = true; index += 1; continue }
+        if args[index] == "--verify-derived-only" { derive = true; verifyDerived = true; index += 1; continue }
         guard ["--input", "--output", "--account", "--previous-account"].contains(args[index]),
               index + 1 < args.count, options[args[index]] == nil else {
             throw Failure.message("Invalid arguments; use --help.")
@@ -104,6 +142,7 @@ func run() throws {
     guard !noPrompt || options["--previous-account"] == nil else {
         throw Failure.message("Credential migration is available only during interactive setup.")
     }
+    guard !noPrompt || !derive else { throw Failure.message("Derive and save passwords during setup; daily runs use saved credentials without prompts.") }
     guard let input = options["--input"] else { throw Failure.message("--input is required.") }
     let inputURL = URL(fileURLWithPath: input).standardizedFileURL
     let attrs = try FileManager.default.attributesOfItem(atPath: inputURL.path)
@@ -114,6 +153,19 @@ func run() throws {
     if probe {
         print("{\"encrypted\":\(pdf.isEncrypted),\"locked\":\(pdf.isLocked),\"page_count\":\(pdf.pageCount)}")
         return  // Pure metadata: never reads Keychain or opens a password prompt.
+    }
+    var candidates = derive ? try derivedPasswords() : []
+    if verifyDerived {
+        guard pdf.isLocked else { throw Failure.message("Derivation verification needs a locked PDF.") }
+        var attempts = 0
+        for candidate in candidates {
+            attempts += 1
+            if pdf.unlock(withPassword: candidate) {
+                print("{\"derived_unlock\":true,\"attempts\":\(attempts)}")
+                return
+            }
+        }
+        throw Failure.message("Known attributes did not unlock this PDF; missing or incorrect input needs clarification.")
     }
     guard let output = options["--output"], let scope = options["--account"], !scope.isEmpty else {
         throw Failure.message("--output and nonempty --account are required.")
@@ -132,6 +184,14 @@ func run() throws {
         }
         var unlocked = false
         if let value = password { unlocked = pdf.unlock(withPassword: value) }
+        if !unlocked {
+            for candidate in candidates {
+                if pdf.unlock(withPassword: candidate) {
+                    password = candidate; unlocked = true; copied = true; break
+                }
+            }
+        }
+        candidates.removeAll()
         if !unlocked {
             if noPrompt { throw Failure.message("Setup required: saved password is missing or no longer unlocks this PDF.") }
             password = try prompt(inputURL.lastPathComponent)

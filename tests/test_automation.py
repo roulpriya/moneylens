@@ -73,12 +73,58 @@ class AutomationTests(unittest.TestCase):
 
     def test_no_reference_similarity_is_held_instead_of_double_counted(self):
         aid = self.ingest(self.alert(), alert=True)["id"]
-        sid = self.ingest(fixture())["id"]
+        payload = fixture(checks={})
+        repeated = copy.deepcopy(payload['transactions'][0]); repeated['row'] = '4'
+        payload['transactions'].append(repeated)
+        sid = self.ingest(payload)["id"]
         self.cli("import", "--statement", sid)
         self.assertEqual(self.cli("list-alerts")[0]["status"], "needs_review")
         self.cli("reconcile", "--alert", aid, "--statement", sid, "--row", "0", "--evidence", "Synthetic fixture evidence confirms the same movement")
         self.assertEqual(self.cli("list-alerts")[0]["status"], "matched")
         self.assertEqual(self.cli("reconcile", "--alert", aid, "--statement", sid, "--row", "0", "--evidence", "Same evidence")["result"], "already_reconciled")
+
+    def test_unique_merchant_date_amount_match_does_not_need_opaque_reference(self):
+        self.ingest(self.alert(), alert=True)
+        payload = fixture(); payload['transactions'][0]['merchant'] = 'Synthetic Grocer Bangalore'
+        sid = self.ingest(payload)['id']; self.cli('import', '--statement', sid)
+        self.assertEqual(self.cli('list-alerts')[0]['status'], 'matched')
+
+    def test_distinct_bank_references_preserve_identical_purchases(self):
+        self.ingest(self.alert('one', reference='bank-transaction-one'), alert=True)
+        self.ingest(self.alert('two', reference='bank-transaction-two'), alert=True)
+        self.assertEqual([a['status'] for a in self.cli('list-alerts')], ['provisional', 'provisional'])
+
+    def test_reconciled_upi_keeps_payment_channel_on_authoritative_row(self):
+        alert = self.alert(reference='unique-upi-reference')
+        alert['transactions'][0].update(merchant='***@example', channel='upi')
+        self.ingest(alert, alert=True)
+        payload = fixture(); payload['transactions'][0]['merchant'] = 'UPI-Example Shop'
+        sid = self.ingest(payload)['id']; self.cli('import', '--statement', sid)
+        self.assertEqual(self.cli('list-alerts')[0]['status'], 'matched')
+        _, data = self.report()
+        authoritative = next(r for r in data['rows'] if r['statement']==sid and r['index']==0)
+        self.assertEqual(authoritative['channel'], 'upi')
+        self.assertEqual(sum(r['amount_minor'] for r in data['rows'] if not r['suppressed'] and not r['blocked'] and r['kind']!='payment'),11000)
+
+    def test_report_template_migration_preserves_old_report_backup(self):
+        path = self.root / 'report.html'
+        old = '<meta name="moneylens-template-version" content="2">Old report'
+        path.write_text(old)
+        self.cli('report', '--output', str(path), ok=False)
+        self.cli('report', '--output', str(path), '--upgrade-template')
+        backups = list(self.root.glob('report.before-upgrade-*.html'))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(backups[0].read_text(), old)
+        self.assertIn('moneylens-template-version" content="3"', path.read_text())
+
+    def test_report_location_update_preserves_schedule_and_inventory(self):
+        self.configure(); self.cli('set-automation', '--id', 'existing-daily-job', runtime=True)
+        path = self.root / 'Documents/MoneyLens/report.html'
+        self.cli('set-report', '--path', str(path), runtime=True)
+        config = self.cli('status', runtime=True)['config']
+        self.assertEqual(config['automation_id'], 'existing-daily-job')
+        self.assertEqual(config['confirmed_card_count'], 1)
+        self.assertEqual(config['report_path'], str(path))
 
     def test_multiple_body_movements_have_distinct_ids(self):
         p = self.alert(); first = self.ingest(p, alert=True)
@@ -134,6 +180,18 @@ class AutomationTests(unittest.TestCase):
         config["confirmed_card_count"] = 1; config["password"] = "synthetic-placeholder"
         path.write_text(json.dumps(config))
         self.assertIn("Unexpected setup fields", self.cli("configure", "--input", str(path), runtime=True, ok=False)["error"])
+
+    def test_explicit_alert_only_card_can_sync_without_claiming_pdf_verification(self):
+        card = {"account_key": "test-new-card", "issuer": "Synthetic Bank", "last4": "5678",
+                "keychain_scope": "unused", "password_status": "unverified", "alerts_only": True}
+        self.assertTrue(self.configure(cards=[card])["ready"])
+        run = self.cli("begin-run", runtime=True)
+        self.assertEqual(run["config"]["confirmed_card_count"], 1)
+        self.assertEqual(run["config"]["cards"][0]["password_status"], "unverified")
+        self.cli("finish-run", "--run-id", run["run"]["id"], "--search-complete", runtime=True)
+        card["alerts_only"] = False
+        self.assertFalse(self.configure(cards=[card])["ready"])
+        self.cli("begin-run", runtime=True, ok=False)
 
     def test_failed_scan_keeps_cursor_and_durable_retries(self):
         self.configure()

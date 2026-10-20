@@ -51,8 +51,11 @@ class LedgerTests(unittest.TestCase):
         return self.cli("stage", "--input", str(file), **kwargs)
 
     def payload(self, sid):
-        with sqlite3.connect(self.data / "ledger.sqlite3") as db:
+        db = sqlite3.connect(self.data / "ledger.sqlite3")
+        try:
             return json.loads(db.execute("SELECT payload FROM statements WHERE id=?", (sid,)).fetchone()[0])
+        finally:
+            db.close()
 
     def test_stage_requires_separate_import_and_survives_restart(self):
         result = self.stage(fixture()); sid = result["id"]

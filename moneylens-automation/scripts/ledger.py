@@ -12,8 +12,8 @@ import sqlite3
 import sys
 import tempfile
 
-DEBITS = {"purchase", "fee", "interest", "cash_advance", "adjustment_debit"}
-CREDITS = {"refund", "payment", "adjustment_credit"}
+DEBITS = {"purchase", "fee", "interest", "cash_advance", "adjustment_debit", "upi_debit", "transfer_out"}
+CREDITS = {"refund", "payment", "adjustment_credit", "upi_credit", "transfer_in"}
 KINDS = DEBITS | CREDITS | {"unknown"}
 CHECKS = {"expected_transaction_count", "expected_debits_minor", "expected_credits_minor",
           "opening_balance_minor", "closing_balance_minor"}
@@ -49,7 +49,7 @@ def normalize(payload):
     require(isinstance(payload, dict), "Statement input must be an object")
     allowed = {"source", "account_key", "account_label", "issuer", "period_start", "period_end", "currency",
                "currency_exponent", "complete", "issues", "checks", "transactions", "account_resolved",
-               "distinct_overlap_rows", "resolution_notes"}
+               "distinct_overlap_rows", "resolution_notes", "account_type"}
     require(not (set(payload) - allowed), "Unexpected statement fields; use the documented schema")
     p = json.loads(json.dumps(payload))
     source = p.get("source")
@@ -64,6 +64,8 @@ def normalize(payload):
         source["sha256"] = source["sha256"].lower()
     for key in ("account_key", "account_label", "issuer"):
         p[key] = text(p.get(key), key)
+    p.setdefault("account_type", "credit_card")
+    require(p["account_type"] in {"credit_card", "bank_account"}, "Invalid account type")
     date(p.get("period_start")); date(p.get("period_end"))
     require(p["period_start"] <= p["period_end"], "Statement period is reversed")
     require(isinstance(p.get("currency"), str) and re.fullmatch(r"[A-Z]{3}", p["currency"]), "Currency needs a three-letter code")
@@ -84,11 +86,13 @@ def normalize(payload):
     require(isinstance(p.get("transactions"), list) and len(p["transactions"]) <= 20000, "transactions must be a list of at most 20000 rows")
     for index, row in enumerate(p["transactions"]):
         require(isinstance(row, dict), "Each transaction must be an object")
-        require(not (set(row) - {"date", "merchant", "amount_minor", "kind", "category", "page", "row", "reference"}), "Unexpected transaction fields")
+        require(not (set(row) - {"date", "merchant", "amount_minor", "kind", "category", "page", "row", "reference", "channel"}), "Unexpected transaction fields")
         date(row.get("date"))
         row["merchant"] = text(row.get("merchant"), "merchant", 500)
         amount = integer(row.get("amount_minor"), "amount_minor")
         require(row.get("kind") in KINDS, "Unknown transaction kind")
+        row.setdefault("channel", "upi" if p['account_type']=='bank_account' or re.match(r'^(?:EMI\s+)?UPI\b', row['merchant'], re.I) else 'card')
+        require(row["channel"] in {"card", "upi", "bank"}, "Invalid payment channel")
         require(row["kind"] not in DEBITS or amount >= 0, "Debit amounts cannot be negative")
         require(row["kind"] not in CREDITS or amount <= 0, "Credit amounts cannot be positive")
         row["category"] = text(row.get("category"), "category", 80)
@@ -182,6 +186,7 @@ def connect(data_dir):
     db.execute("CREATE TABLE IF NOT EXISTS alert_matches (alert_id TEXT PRIMARY KEY, statement_id TEXT NOT NULL, row_index INTEGER NOT NULL, evidence TEXT NOT NULL, UNIQUE(statement_id,row_index))")
     db.execute("CREATE TABLE IF NOT EXISTS runtime_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     db.execute("CREATE TABLE IF NOT EXISTS retry_sources (source_key TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+    db.execute("CREATE TABLE IF NOT EXISTS source_dispositions (source_id TEXT PRIMARY KEY, payload TEXT NOT NULL)")
     db.commit()
     return db
 
@@ -262,6 +267,7 @@ def main():
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--from-date", type=date)
     p.add_argument("--to-date", type=date)
+    p.add_argument("--upgrade-template", action="store_true", help="Explicit development/setup migration; daily jobs must not use this")
     args = parser.parse_args()
     db = connect(args.data_dir)
     try:
@@ -299,8 +305,15 @@ def main():
                 retry = [json.loads(r[0]) for r in db.execute("SELECT payload FROM retry_sources")]
                 sync = {"last_success": meta.get("last_success"), "last_run": meta.get("last_run"),
                         "cards": len(meta.get("config", {}).get("cards", [])), "pending_sources": retry,
+                        "upi_accounts": len(meta.get("config", {}).get("upi_accounts", [])),
                         "timezone": meta.get("config", {}).get("timezone")}
-                page = render(enriched, args.from_date, args.to_date, existing=args.output.read_text() if args.output.exists() else None, sync=sync)
+                previous_html = args.output.read_text() if args.output.exists() else None
+                page = render(enriched, args.from_date, args.to_date, existing=None if args.upgrade_template else previous_html, sync=sync)
+                if args.upgrade_template and previous_html is not None:
+                    backup = args.output.with_name(args.output.stem + '.before-upgrade-' + dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%S%f') + '.html')
+                    with backup.open('x', encoding='utf-8') as stream:
+                        stream.write(previous_html)
+                    os.chmod(backup, 0o600)
                 with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=args.output.parent, delete=False) as f:
                     temp_path = Path(f.name)
                     f.write(page)

@@ -27,9 +27,11 @@ def now():
 
 def config_validated(p):
     allowed = {"mailbox", "gmail_verified_at", "initial_start", "timezone", "daily_time", "cards",
-               "confirmed_card_count", "report_path", "automation_id", "auto_save_validated", "discovery_notes"}
+               "confirmed_card_count", "report_path", "automation_id", "auto_save_validated", "discovery_notes", "upi_accounts"}
     require(isinstance(p, dict) and not (set(p) - allowed), "Unexpected setup fields; credentials never belong in setup JSON")
     p = json.loads(json.dumps(p))
+    p.setdefault("report_path", str(Path.home() / "Documents/MoneyLens/report.html"))
+    p.setdefault("upi_accounts", [])
     for key in ("mailbox", "gmail_verified_at", "timezone", "daily_time", "report_path"):
         p[key] = text(p.get(key), key, 2000)
     dt.datetime.fromisoformat(p["gmail_verified_at"])
@@ -38,20 +40,32 @@ def config_validated(p):
     date(p.get("initial_start"))
     require(Path(p["report_path"]).is_absolute() and p["report_path"].endswith(".html"), "report_path must be an absolute HTML path")
     require(p.get("auto_save_validated") is True, "This workflow requires the confirmed automatic-save policy")
-    require(isinstance(p.get("cards"), list) and p["cards"], "At least one identified card is required")
+    require(isinstance(p.get("cards"), list), "cards must be a list")
+    require(isinstance(p["upi_accounts"], list), "upi_accounts must be a list")
+    require(p["cards"] or p["upi_accounts"], "At least one card or UPI bank account is required")
     keys = []
     for card in p["cards"]:
-        require(isinstance(card, dict) and not (set(card) - {"account_key", "issuer", "last4", "keychain_scope", "password_status", "verified_at"}), "Unexpected card fields")
+        require(isinstance(card, dict) and not (set(card) - {"account_key", "issuer", "last4", "keychain_scope", "password_status", "verified_at", "alerts_only"}), "Unexpected card fields")
         for key in ("account_key", "issuer", "last4", "keychain_scope", "password_status"):
             card[key] = text(card.get(key), key)
         require(bool(re.fullmatch(r"\d{4}", card["last4"])), "Only last four card digits belong in setup")
         require(card["password_status"] in {"verified", "not_required", "unverified"}, "Invalid password status")
+        require(type(card.get("alerts_only", False)) is bool, "alerts_only must be boolean")
         if card["password_status"] == "verified":
             dt.datetime.fromisoformat(card.get("verified_at", ""))
         keys.append(card["account_key"])
     require(len(set(keys)) == len(keys), "Card list contains duplicate account identities")
     require(type(p.get("confirmed_card_count")) is int and p["confirmed_card_count"] == len(keys), "User-confirmed card count must match the inventory")
-    p["ready"] = all(c["password_status"] in {"verified", "not_required"} for c in p["cards"])
+    for account in p["upi_accounts"]:
+        require(isinstance(account, dict) and not (set(account) - {"account_key", "issuer", "last4", "account_label", "source_message_id"}), "Unexpected UPI account fields")
+        for key in ("account_key", "issuer", "last4", "account_label"):
+            account[key] = text(account.get(key), key)
+        require(bool(re.fullmatch(r"\d{4}", account["last4"])), "UPI accounts retain only the last four bank-account digits")
+        keys.append(account["account_key"])
+    require(len(set(keys)) == len(keys), "Account identities must be unique")
+    # Explicitly confirmed alert-only cards do not yet require PDF credentials.
+    # Keep their actual password status so a later PDF still routes to setup.
+    p["ready"] = all(c.get("alerts_only", False) or c["password_status"] in {"verified", "not_required"} for c in p["cards"])
     return p
 
 
@@ -98,6 +112,8 @@ def main():
     p.add_argument("--error", default="")
     p = sub.add_parser("set-automation")
     p.add_argument("--id", required=True)
+    p = sub.add_parser("set-report")
+    p.add_argument("--path", type=Path, default=Path.home() / "Documents/MoneyLens/report.html")
     p = sub.add_parser("retry-add")
     p.add_argument("--message", required=True)
     p.add_argument("--attachment", default="")
@@ -129,6 +145,13 @@ def main():
             p["automation_id"] = text(args.id, "automation ID")
             put(db, "config", p)
             result = {"result": "automation_linked"}
+        elif args.command == "set-report":
+            p = get(db, "config")
+            require(p is not None, "Configure MoneyLens first")
+            require(args.path.is_absolute() and args.path.suffix.lower() == '.html', "Report path must be an absolute HTML path")
+            p["report_path"] = str(args.path)
+            put(db, "config", p)
+            result = {"result": "report_location_updated", "report_path": p["report_path"]}
         elif args.command == "retry-add":
             p = {"message_id": text(args.message, "message ID"), "attachment_id": args.attachment,
                  "reason": text(args.reason, "retry reason", 1000), "updated_at": now().isoformat()}

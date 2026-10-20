@@ -6,6 +6,8 @@ The two skills ship together. `moneylens-setup` owns interaction, card confirmat
 
 Compile the native helper once to `<data-dir>/cache/pdf-extract`, with private cache permissions and a local compiler module cache. Reuse that exact executable for setup and daily runs so macOS Keychain access control does not see a different executable on every run. Recompiling/upgrading can require an interactive setup pass to reauthorize Keychain access.
 
+During setup, check the cached helper's `--help` for the required derivation options. If an older helper lacks them, rebuild once from the current source and verify Keychain access interactively. Daily runs keep using the already verified cached executable; they do not rebuild it or trigger credential dialogs.
+
 ```sh
 pdf-extract --keychain-status --account <opaque-card-scope>
 pdf-extract --input <temporary-statement.pdf> --output <temporary-extraction.json> --account <opaque-card-scope>
@@ -15,7 +17,7 @@ The first command reports metadata only and does not show system prompts; the se
 
 ## Nonsecret configuration
 
-After actual Gmail verification, explicit user card-count/list confirmation, password checks, and confirmation of the local daily time/report location, write a private temporary JSON file:
+After actual Gmail verification, user card-count/list confirmation, password checks (or an explicit alerts-only choice for a card without statements), and confirmation of the local daily time, write a private temporary JSON file:
 
 ```json
 {
@@ -26,7 +28,8 @@ After actual Gmail verification, explicit user card-count/list confirmation, pas
   "daily_time": "09:00",
   "confirmed_card_count": 1,
   "auto_save_validated": true,
-  "report_path": "/absolute/private/data-dir/report.html",
+  "report_path": "/Users/example/Documents/MoneyLens/report.html",
+  "upi_accounts": [],
   "cards": [{
     "account_key": "opaque-stable-card-key",
     "issuer": "Example Bank",
@@ -38,7 +41,7 @@ After actual Gmail verification, explicit user card-count/list confirmation, pas
 }
 ```
 
-These values are synthetic examples, never evidence of completed setup. `password_status` is `verified`, `not_required` (an observed unprotected statement), or `unverified` (not ready). Presence of a Keychain entry alone is insufficient. Configure refuses a mismatched user-confirmed count and never accepts password fields. Configuration contains only masked card details and nonsecret metadata; it is stored in SQLite. `ready` is computed, not an input override.
+These values are synthetic examples, never evidence of completed setup. `password_status` is `verified`, `not_required` (an observed unprotected statement), or `unverified`. A confirmed new card with no statement can use `alerts_only: true` while retaining `password_status: "unverified"`; it does not block the other accounts. Ask this choice through request-input instead of ending setup or requiring a nonexistent PDF. Presence of a Keychain entry alone is insufficient. Configure refuses a mismatched user-confirmed count and never accepts password fields. Configuration contains only masked card details and nonsecret metadata; it is stored in SQLite. `ready` is computed, not an input override.
 
 ```sh
 python3 <automation-skill>/scripts/runtime_state.py --data-dir <data-dir> configure --input <private-config.json>
@@ -77,3 +80,11 @@ python3 <automation-skill>/scripts/runtime_state.py finish-run --run-id <run-id>
 ```
 
 Use `--data-dir` before each command for alternate locations. The ledger/report stay intact if a run fails. The report's data includes last scan status and pending sources. A crash leaves a lease that later expires; no second writer may acquire it while active.
+
+## Documents report location
+
+Default to `~/Documents/MoneyLens/report.html`. The ledger and credentials retain their existing private storage locations. `runtime_state.py set-report --path <absolute-Documents-path>` updates only the configured report location and preserves cards, credential status, cursor, and schedule ID. When moving an existing report, create and verify the new copy before changing the configuration and existing automation prompt; preserve the old file as a fallback. Explicit template migrations are setup/development actions. Normal daily runs only replace the new report's JSON data block.
+
+## Complete the interview without ending early
+
+Use request-input for card confirmation, an unknown required attribute, alert-only decisions, or the daily time. While an answer is pending, continue independent work and keep the turn open using available wait tools; do not require “continue,” treat silence as consent, or put a question in a final answer. Reuse facts already provided. Do not ask the user to upload a PDF when Gmail raw-MIME retrieval can obtain it or when the card simply has no statement yet.
