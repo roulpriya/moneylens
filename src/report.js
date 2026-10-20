@@ -1,34 +1,3 @@
-<!doctype html>
-<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; connect-src 'none'">
-<meta name="moneylens-template-version" content="3">
-<title>MoneyLens · Spending report</title>
-<style>
-:root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#e7eeeb;background:#0c1214;font-size:15px;--panel:#141e21;--line:#2a393d;--muted:#9aada9;--accent:#95e2bd}*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 85% 0,#17322b55,transparent 45%),#0c1214}header{max-width:1328px;margin:auto;padding:42px 24px 24px}h1{font-size:36px;line-height:1.15;letter-spacing:-1.3px;font-weight:600;margin:13px 0 8px}h2{font-size:18px;font-weight:600;letter-spacing:-.25px;margin:0 0 20px}.eyebrow{display:flex;align-items:center;gap:10px;color:var(--accent);letter-spacing:2.2px;font-size:11px;font-weight:700;text-transform:uppercase}.eyebrow:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 16px #95e2bd44}main{max-width:1328px;margin:auto;padding:8px 24px 24px}.filters,.metrics,.columns{display:grid;gap:16px}.filters{grid-template-columns:repeat(4,1fr);padding:22px;background:#121c1f;border:1px solid var(--line);border-radius:16px;margin-bottom:22px}label{display:flex;flex-direction:column;gap:9px;font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.3px}select,input{width:100%;min-height:42px;padding:9px 11px;border:1px solid #33454a;border-radius:8px;background:#0d1619;color:#e7eeeb;font:inherit;font-size:13px}input::placeholder{color:#879d98}select:focus,input:focus{outline:2px solid #95e2bd;outline-offset:2px}button{cursor:pointer}.metrics{grid-template-columns:repeat(4,1fr);margin:20px 0}.card,.panel{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:22px;box-shadow:0 6px 20px #00000012}.card .label{font-size:12px;color:#b5c5c0}.value{font-size:clamp(19px,2.1vw,29px);letter-spacing:-.8px;font-weight:600;margin:15px 0 9px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}#metrics .card:nth-child(3){background:linear-gradient(135deg,#1a3a30,#142a26);border-color:#35644f}#metrics .card:nth-child(3) .value{color:#acf0c8}.muted{color:var(--muted);font-size:12px;line-height:1.6}.columns{grid-template-columns:1fr 1fr;margin:20px 0}.barrow{margin:18px 0}.barline{display:flex;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:9px}.barline span:last-child{color:#b9cbc4;font-variant-numeric:tabular-nums}.track{height:6px;background:#25343a;border-radius:5px;overflow:hidden}.fill{height:100%;background:linear-gradient(90deg,#4d9e7c,#95e2bd);border-radius:5px}.scroll{overflow:auto;max-height:560px;scrollbar-color:#425950 #141e21;scrollbar-width:thin}table{border-collapse:collapse;width:100%;font-size:12px;text-align:left;white-space:nowrap}td,th{border-bottom:1px solid #26363a;padding:14px 11px}th{color:#afc2ba;background:#18262a;position:sticky;top:0;font-weight:500;font-size:11px;letter-spacing:.3px}tbody tr:hover{background:#1a292c}td.merchant{white-space:normal;min-width:180px;max-width:380px;line-height:1.5}td:nth-child(6){font-variant-numeric:tabular-nums}.badge{padding:4px 7px;background:#254637;color:#b4e6ca;border-radius:5px;font-size:10px}.warn{background:#3d311e;color:#f0cd91;padding:14px;border:1px solid #65502e;border-radius:10px;line-height:1.6;font-size:13px;margin:12px 0}.source{padding:16px 0;border-bottom:1px solid #2a393d;font-size:13px;line-height:1.7;overflow-wrap:anywhere}.source:last-child{border-bottom:0}details{margin-top:16px}summary{cursor:pointer;font-size:14px;font-weight:500;color:#bdcec6}summary::marker{color:#7f9e90}details[open]>summary{margin-bottom:10px;color:#e7eeeb}footer{padding:24px 2px 8px;color:#93aaa0;font-size:11px}#upi-metrics{grid-template-columns:repeat(2,1fr)}#upi-metrics .value{font-size:23px}#upi-metrics .card{padding:18px 22px}@media(max-width:850px){.filters,.metrics{grid-template-columns:repeat(2,1fr)}.columns{grid-template-columns:1fr}header{padding:32px 16px 20px}main{padding:8px 16px 20px}}@media(max-width:450px){.metrics,.filters,#upi-metrics{grid-template-columns:1fr}.filters,.panel,.card{padding:19px}h1{font-size:30px}.value{font-size:27px}}
-</style>
-<header><div class="eyebrow">MoneyLens · Cards & UPI</div><h1>Your spending, in view.</h1></header>
-<main>
-<section class="filters" aria-label="Dashboard filters">
-<label>Currency<select id="currency"></select></label>
-<label>Month<select id="month"><option value="">All months</option></select></label>
-<label>Account<select id="account"><option value="">All accounts</option></select></label>
-<label>Record state<select id="state"><option value="">All eligible records</option><option value="draft">Needs review</option><option value="imported">Saved statements</option><option value="posted">UPI bank transactions</option><option value="provisional">Recent card alerts</option><option value="matched">Reconciled alerts</option><option value="unresolved">Needs attention</option></select></label>
-<label>From transaction date<input id="from" type="date"></label><label>Through transaction date<input id="to" type="date"></label>
-<label>Payment type<select id="channel"><option value="">Cards and UPI</option><option value="card">Card</option><option value="upi">UPI</option></select></label>
-<label>Find merchant, category or note<input id="search" placeholder="Search transactions and notes"></label>
-</section>
-<div class="metrics" id="metrics"></div><div class="metrics" id="upi-metrics"></div>
-<div class="columns"><section class="panel"><h2>Where it went</h2><p class="muted">Your spending by category.</p><div id="categories"></div></section><section class="panel"><h2>Month by month</h2><div class="scroll"><table><thead><tr><th>Month</th><th>Gross charges</th><th>Net spending</th></tr></thead><tbody id="months"></tbody></table></div></section></div>
-<section class="panel"><h2>Transactions</h2><div class="scroll"><table><thead><tr><th>Date</th><th>Merchant</th><th>Category</th><th>Notes</th><th>Movement</th><th>Amount</th><th>Account</th><th>State</th></tr></thead><tbody id="transactions"></tbody></table></div></section>
-<details id="personal-rules" class="panel" hidden><summary>Your categorization rules</summary><div id="rule-list"></div></details>
-<details class="panel"><summary>Statement coverage and checks</summary><p class="muted">Checks apply to the whole statement. “Unavailable” means no independent source check was provided. Listed Gmail IDs locate source records without retaining original PDFs.</p><div id="statements"></div></details>
-<details id="sync-issues" class="panel" hidden><summary id="review-summary"></summary><div id="review-groups"></div></details>
-<footer id="footer"></footer>
-</main>
-<!-- MONEYLENS_DATA_START -->
-<script id="data" type="application/json">{"schema_version":3,"statements":[],"rows":[],"from":"","to":"","generated":null,"sync":{}}</script>
-<!-- MONEYLENS_DATA_END -->
-<script>
 'use strict';
 const data=JSON.parse(document.getElementById('data').textContent), $=id=>document.getElementById(id);
 function node(tag,text,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e}
@@ -69,4 +38,3 @@ if(reviewItems.length||failedScan){$('sync-issues').hidden=false;$('review-summa
 }
 $('footer').textContent=data.generated?'Updated '+localTime(data.generated):'Template preview · No account data.';
 ['currency','month','account','state','from','to','search','channel'].forEach(id=>$(id).addEventListener('input',update));update();
-</script></html>

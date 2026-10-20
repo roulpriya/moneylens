@@ -10,3 +10,7 @@ reports/
 *.sqlite3-wal
 *.sqlite3-shm
 cache/
+
+node_modules/
+dist/
+*.egg-info/

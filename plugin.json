@@ -1,0 +1,21 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "moneylens",
+  "version": "1.0.0",
+  "description": "Gmail statements and UPI transactions in a private, personal spending report.",
+  "repository": "https://github.com/roulpriya/moneylens",
+  "license": "MIT",
+  "keywords": ["finance", "gmail", "spending", "upi"],
+  "extensions": {
+    "com.openai": {
+      "onboardingSkill": "./skills/moneylens-setup/SKILL.md",
+      "interface": {
+        "displayName": "MoneyLens",
+        "shortDescription": "Personal spending from Gmail statements and UPI notices",
+        "category": "Productivity",
+        "brandColor": "#95E2BD",
+        "defaultPrompt": ["Set up MoneyLens and my daily spending report.", "Update my MoneyLens report."]
+      }
+    }
+  }
+}

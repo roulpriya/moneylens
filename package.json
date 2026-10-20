@@ -1,0 +1,13 @@
+{
+  "name": "moneylens",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "bun run scripts/build-report.ts && bun run scripts/package-plugin.ts",
+    "test": "python3 -m unittest discover -s tests -v",
+    "test:ui": "bun test tests/report.test.ts"
+  },
+  "devDependencies": {
+    "bun": "1.4.3"
+  }
+}

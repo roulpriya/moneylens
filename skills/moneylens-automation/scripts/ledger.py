@@ -182,6 +182,8 @@ def assessment(record, all_records):
 
 def connect(data_dir):
     os.umask(0o077)
+    if data_dir.resolve() == default_dir().resolve() and not (data_dir / 'ledger.sqlite3').exists() and (legacy_dir() / 'ledger.sqlite3').exists():
+        raise ValueError('Existing MoneyLens data needs migration; run scripts/migrate_storage.py before using the Documents default')
     data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     path = data_dir / "ledger.sqlite3"
     db = sqlite3.connect(path, timeout=20)
@@ -244,9 +246,11 @@ def stage(db, path):
 
 
 def default_dir():
-    if sys.platform == "darwin":
-        return Path.home() / "Library/Application Support/MoneyLensCodex"
-    return Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share"))) / "moneylens-codex"
+    return Path.home() / 'Documents/MoneyLens'
+
+
+def legacy_dir():
+    return Path.home() / 'Library/Application Support/MoneyLensCodex'
 
 
 def main():
@@ -312,6 +316,10 @@ def main():
                 require(args.output.suffix.lower() == ".html", "Report output must end in .html")
                 args.output.parent.mkdir(parents=True, exist_ok=True)
                 meta = {key: json.loads(value) for key, value in db.execute("SELECT key,value FROM runtime_meta")}
+                from periods import windows
+                bounds = windows(meta.get('config', {}).get('timezone', 'UTC'))
+                if args.from_date is None and args.to_date is None:
+                    args.from_date, args.to_date = bounds['report_from'], bounds['report_to']
                 retry = [json.loads(r[0]) for r in db.execute("SELECT payload FROM retry_sources")]
                 sync = {"last_success": meta.get("last_success"), "last_run": meta.get("last_run"),
                         "cards": len(meta.get("config", {}).get("cards", [])), "pending_sources": retry,

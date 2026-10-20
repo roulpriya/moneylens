@@ -10,7 +10,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "moneylens-automation/scripts/ledger.py"
+SCRIPT = ROOT / "skills/moneylens-automation/scripts/ledger.py"
 SPEC = importlib.util.spec_from_file_location("dashboard", SCRIPT.with_name("dashboard.py"))
 DASH = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(DASH)

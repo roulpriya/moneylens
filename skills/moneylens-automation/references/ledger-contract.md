@@ -1,6 +1,6 @@
 # Ledger contract
 
-Python standard-library SQLite; no third-party Python packages. macOS default: `~/Library/Application Support/MoneyLensCodex`; elsewhere: `$XDG_DATA_HOME/moneylens-codex` or `~/.local/share/moneylens-codex`. Use `--data-dir PATH` before the command for isolation. Skill files contain no user data.
+The ledger uses Python standard-library SQLite. Runtime data defaults to `~/Documents/MoneyLens` on all platforms; PDF/Keychain extraction has its own requirements file. Use `--data-dir PATH` before the command for isolation or another mailbox. Migrate legacy data with `scripts/migrate_storage.py` before using the Documents default. Skill files contain no user data. Reports default to the previous calendar month through today in the configured timezone; explicit date arguments override this without deleting older history.
 
 ## Stage a statement
 

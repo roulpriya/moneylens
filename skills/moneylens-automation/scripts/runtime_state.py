@@ -10,6 +10,7 @@ import sys
 import uuid
 from zoneinfo import ZoneInfo
 from ledger import connect, date, default_dir, hash_value, require, text
+from periods import windows
 
 
 def get(db, key, default=None):
@@ -37,6 +38,7 @@ def config_validated(p):
     dt.datetime.fromisoformat(p["gmail_verified_at"])
     ZoneInfo(p["timezone"])
     require(bool(re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", p["daily_time"])), "daily_time must be HH:MM")
+    p.setdefault('initial_start', windows(p['timezone'])['report_from'])
     date(p.get("initial_start"))
     require(Path(p["report_path"]).is_absolute() and p["report_path"].endswith(".html"), "report_path must be an absolute HTML path")
     require(p.get("auto_save_validated") is True, "This workflow requires the confirmed automatic-save policy")
@@ -77,13 +79,15 @@ def begin(db):
     config = get(db, "config")
     require(config and config["ready"], "Run moneylens-setup to confirm cards and verify required passwords first")
     current = now()
+    bounds = windows(config['timezone'], current)
     active = get(db, "active_run")
     require(not active or dt.datetime.fromisoformat(active["expires_at"]) < current, "Another daily run holds the sync lease")
     run = {"id": uuid.uuid4().hex, "started_at": current.isoformat(), "expires_at": (current + dt.timedelta(hours=2)).isoformat()}
     put(db, "active_run", run)
     last = get(db, "last_success")
-    start = (dt.datetime.fromisoformat(last) - dt.timedelta(days=3)).date().isoformat() if last else config["initial_start"]
-    return {"run": run, "config": config, "search_from": start, "search_before": (current + dt.timedelta(days=1)).date().isoformat(), "retry_sources": retries(db)}
+    start = (dt.datetime.fromisoformat(last).astimezone(ZoneInfo(config['timezone'])) - dt.timedelta(days=3)).date().isoformat() if last else config["initial_start"]
+    return {"run": run, "config": config, "search_from": start, "search_before": bounds['discovery_before'],
+            'display_from': bounds['report_from'], 'display_to': bounds['report_to'], "retry_sources": retries(db)}
 
 
 def finish(db, run_id, search_complete, error):
@@ -105,6 +109,8 @@ def main():
     p = sub.add_parser("configure")
     p.add_argument("--input", type=Path, required=True)
     sub.add_parser("status")
+    p = sub.add_parser('windows')
+    p.add_argument('--timezone')
     sub.add_parser("begin-run")
     p = sub.add_parser("finish-run")
     p.add_argument("--run-id", required=True)
@@ -135,6 +141,8 @@ def main():
             result = {"result": "configured", "ready": p["ready"], "cards": len(p["cards"])}
         elif args.command == "status":
             result = {"config": get(db, "config"), "last_success": get(db, "last_success"), "last_run": get(db, "last_run"), "retry_sources": retries(db)}
+        elif args.command == 'windows':
+            result = windows(args.timezone or get(db, 'config', {}).get('timezone', 'UTC'))
         elif args.command == "begin-run":
             result = begin(db)
         elif args.command == "finish-run":

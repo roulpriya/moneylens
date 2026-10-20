@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; connect-src 'none'">
+<meta name="moneylens-template-version" content="3">
+<title>MoneyLens · Spending report</title>
+<!-- REPORT_STYLES -->
+<header><div class="eyebrow">MoneyLens · Cards & UPI</div><h1>Your spending, in view.</h1></header>
+<main>
+<section class="filters" aria-label="Dashboard filters">
+<label>Currency<select id="currency"></select></label>
+<label>Month<select id="month"><option value="">All months</option></select></label>
+<label>Account<select id="account"><option value="">All accounts</option></select></label>
+<label>Record state<select id="state"><option value="">All eligible records</option><option value="draft">Needs review</option><option value="imported">Saved statements</option><option value="posted">UPI bank transactions</option><option value="provisional">Recent card alerts</option><option value="matched">Reconciled alerts</option><option value="unresolved">Needs attention</option></select></label>
+<label>From transaction date<input id="from" type="date"></label><label>Through transaction date<input id="to" type="date"></label>
+<label>Payment type<select id="channel"><option value="">Cards and UPI</option><option value="card">Card</option><option value="upi">UPI</option></select></label>
+<label>Find merchant, category or note<input id="search" placeholder="Search transactions and notes"></label>
+</section>
+<div class="metrics" id="metrics"></div><div class="metrics" id="upi-metrics"></div>
+<div class="columns"><section class="panel"><h2>Where it went</h2><p class="muted">Your spending by category.</p><div id="categories"></div></section><section class="panel"><h2>Month by month</h2><div class="scroll"><table><thead><tr><th>Month</th><th>Gross charges</th><th>Net spending</th></tr></thead><tbody id="months"></tbody></table></div></section></div>
+<section class="panel"><h2>Transactions</h2><div class="scroll"><table><thead><tr><th>Date</th><th>Merchant</th><th>Category</th><th>Notes</th><th>Movement</th><th>Amount</th><th>Account</th><th>State</th></tr></thead><tbody id="transactions"></tbody></table></div></section>
+<details id="personal-rules" class="panel" hidden><summary>Your categorization rules</summary><div id="rule-list"></div></details>
+<details class="panel"><summary>Statement coverage and checks</summary><p class="muted">Checks apply to the whole statement. “Unavailable” means no independent source check was provided. Listed Gmail IDs locate source records without retaining original PDFs.</p><div id="statements"></div></details>
+<details id="sync-issues" class="panel" hidden><summary id="review-summary"></summary><div id="review-groups"></div></details>
+<footer id="footer"></footer>
+</main>
+<!-- MONEYLENS_DATA_START -->
+<script id="data" type="application/json">{"schema_version":3,"statements":[],"rows":[],"from":"","to":"","generated":null,"sync":{}}</script>
+<!-- MONEYLENS_DATA_END -->
+<!-- REPORT_SCRIPT --></html>

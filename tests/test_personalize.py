@@ -6,7 +6,7 @@ import sys
 import tempfile
 import unittest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'moneylens-automation/scripts'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'skills/moneylens-automation/scripts'))
 from ledger import connect, normalize, records, semantic_key, stage
 from personalize import annotate, decorate, validate_rules, name_like
 from test_ledger import fixture

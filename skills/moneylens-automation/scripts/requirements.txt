@@ -1,0 +1,5 @@
+pypdf==6.21.1
+cryptography==50.0.2
+pyobjc-framework-Security==12.2.2; sys_platform == 'darwin'
+pyobjc-framework-LocalAuthentication==12.2.2; sys_platform == 'darwin'
+pyobjc-framework-Cocoa==12.2.2; sys_platform == 'darwin'

@@ -1,19 +1,19 @@
 # Setup and scheduling contract
 
-The two skills ship together. `moneylens-setup` owns interaction, card confirmation, password provisioning, and schedule creation/repair. `moneylens-automation` owns daily data ingestion and report updates. Scripts and committed UI live only in the automation skill. All runtime state is outside the skill/repository, defaulting to `~/Library/Application Support/MoneyLensCodex`.
+The two skills ship together. `moneylens-setup` owns interaction, card confirmation, password provisioning, and schedule creation/repair. `moneylens-automation` owns daily data ingestion and report updates. Scripts and committed UI live only in the automation skill. All runtime state is outside the skill/repository, defaulting to `~/Documents/MoneyLens`.
 
-## Native credential verification
+## Python credential verification
 
-Compile the native helper once to `<data-dir>/cache/pdf-extract`, with private cache permissions and a local compiler module cache. Reuse that exact executable for setup and daily runs so macOS Keychain access control does not see a different executable on every run. Recompiling/upgrading can require an interactive setup pass to reauthorize Keychain access.
-
-During setup, check the cached helper's `--help` for the required derivation options. If an older helper lacks them, rebuild once from the current source and verify Keychain access interactively. Daily runs keep using the already verified cached executable; they do not rebuild it or trigger credential dialogs.
+The plugin ships `scripts/pdf_extract.py` and `scripts/requirements.txt`. Create a private Python runtime once in the data directory; no Swift compiler or executable is required:
 
 ```sh
-pdf-extract --keychain-status --account <opaque-card-scope>
-pdf-extract --input <temporary-statement.pdf> --output <temporary-extraction.json> --account <opaque-card-scope>
+python3 -m venv <data-dir>/runtime
+<data-dir>/runtime/bin/python -m pip install -r <automation-skill>/scripts/requirements.txt
+<data-dir>/runtime/bin/python <automation-skill>/scripts/pdf_extract.py --keychain-status --account <opaque-card-scope>
+<data-dir>/runtime/bin/python <automation-skill>/scripts/pdf_extract.py --input <temporary.pdf> --output <temporary-extraction.json> --account <opaque-card-scope>
 ```
 
-The first command reports metadata only and does not show system prompts; the second may show the local masked prompt. Save a password only after a successful PDF unlock. Verify a stored password by re-extracting with `--no-prompt` into a new temporary output file before declaring the card ready for unattended use. macOS may require access approval during setup. On a locked/login Keychain or unavailable desktop, report the concrete limitation; never promise jobs can unlock a locked Mac's credential store.
+The Python adapter uses macOS Security APIs through PyObjC and keeps the existing service `com.moneylens.codex.pdf-password` and account scopes. It stores **only passwords** in Keychain; account metadata, category rules, preferences, and schedule details belong in SQLite. The first command reads metadata without interaction; the second may show a local masked prompt. A password is saved only after it unlocks the actual PDF. Verify the stored password by repeating extraction with `--no-prompt` before marking the card ready. Check existing entries through the new Python runtime during migration: an older helper's permission does not establish the new process's access. Daily jobs never prompt or install dependencies. If the Mac's Keychain or local runtime is unavailable, queue the source for setup repair.
 
 ## Nonsecret configuration
 
@@ -23,7 +23,7 @@ After actual Gmail verification, user card-count/list confirmation, password che
 {
   "mailbox": "verified-connected-account-identifier",
   "gmail_verified_at": "2026-10-20T09:00:00+05:30",
-  "initial_start": "2026-07-20",
+  "initial_start": "2026-09-01",
   "timezone": "Asia/Kolkata",
   "daily_time": "09:00",
   "confirmed_card_count": 1,
@@ -48,7 +48,7 @@ python3 <automation-skill>/scripts/runtime_state.py --data-dir <data-dir> config
 python3 <automation-skill>/scripts/runtime_state.py --data-dir <data-dir> status
 ```
 
-Remove the temporary config afterward. Initial discovery may use temporary private inventories, but a final configuration is saved only after the user's confirmation. Known-card alias matching must retain the same account key. Keep a separate data directory for each mailbox. Do not silently reset an existing ledger.
+Remove the temporary config afterward. Use `runtime_state.py windows --timezone <user-timezone>` to get a rolling 30-day account-discovery window and a separate previous-plus-current calendar-month report window. Initial discovery may use temporary private inventories, but a final configuration is saved only after the user's confirmation. Known-card alias matching must retain the same account key. Keep a separate data directory for each mailbox. Do not silently reset an existing ledger.
 
 ## Scheduling handoff
 
@@ -81,9 +81,11 @@ python3 <automation-skill>/scripts/runtime_state.py finish-run --run-id <run-id>
 
 Use `--data-dir` before each command for alternate locations. The ledger/report stay intact if a run fails. The report's data includes last scan status and pending sources. A crash leaves a lease that later expires; no second writer may acquire it while active.
 
-## Documents report location
+## Documents storage and report location
 
-Default to `~/Documents/MoneyLens/report.html`. The ledger and credentials retain their existing private storage locations. `runtime_state.py set-report --path <absolute-Documents-path>` updates only the configured report location and preserves cards, credential status, cursor, and schedule ID. When moving an existing report, create and verify the new copy before changing the configuration and existing automation prompt; preserve the old file as a fallback. Explicit template migrations are setup/development actions. Normal daily runs only replace the new report's JSON data block.
+Default to `~/Documents/MoneyLens/report.html`. The ledger, nonsecret configuration, private runtime, cache, and backups all live in the same Documents directory. Password values stay in Keychain. The report defaults to the previous calendar month through today, while older ledger history is retained. For a legacy installation, run `scripts/migrate_storage.py` before using the new default. It refuses an existing destination ledger or active sync, verifies every copied table, and archives the entire old data directory under `<data-dir>/backups/`. Update the existing automation to use the new data directory and Python helper only after validation.
+
+`runtime_state.py set-report --path <absolute-Documents-path>` updates only the configured report location and preserves cards, credential status, cursor, and schedule ID. When moving an existing report, create and verify the new copy before changing the configuration and existing automation prompt; preserve the old file as a fallback. Explicit template migrations are setup/development actions. Normal daily runs only replace the new report's JSON data block.
 
 ## Complete the interview without ending early
 
