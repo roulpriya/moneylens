@@ -187,6 +187,7 @@ def connect(data_dir):
     db.execute("CREATE TABLE IF NOT EXISTS runtime_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     db.execute("CREATE TABLE IF NOT EXISTS retry_sources (source_key TEXT PRIMARY KEY, payload TEXT NOT NULL)")
     db.execute("CREATE TABLE IF NOT EXISTS source_dispositions (source_id TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+    db.execute("CREATE TABLE IF NOT EXISTS transaction_annotations (record_id TEXT NOT NULL, evidence_key TEXT NOT NULL, category TEXT, note TEXT, PRIMARY KEY(record_id,evidence_key))")
     db.commit()
     return db
 
@@ -290,15 +291,18 @@ def main():
                            **assessment(r, all_records)} for r in all_records]
             elif args.command == "list-alerts":
                 from alerts import report_records
+                from personalize import decorate
                 result = [{"id": r["id"], "status": r["status"], "account": r["payload"]["account_label"],
                            "source": r["payload"]["source"], "transaction": r["payload"]["transactions"][0],
-                           **r["validation"]} for r in report_records(db, all_records)]
+                           **r["validation"]} for r in decorate(db, report_records(db, all_records))]
             elif args.command == "report":
                 from dashboard import render
                 require(not (args.from_date and args.to_date) or args.from_date <= args.to_date, "Report date range reversed")
                 enriched = [{**r, "validation": assessment(r, all_records)} for r in all_records]
                 from alerts import report_records
                 enriched.extend(report_records(db, all_records))
+                from personalize import decorate
+                enriched = decorate(db, enriched)
                 require(args.output.suffix.lower() == ".html", "Report output must end in .html")
                 args.output.parent.mkdir(parents=True, exist_ok=True)
                 meta = {key: json.loads(value) for key, value in db.execute("SELECT key,value FROM runtime_meta")}
@@ -307,6 +311,7 @@ def main():
                         "cards": len(meta.get("config", {}).get("cards", [])), "pending_sources": retry,
                         "upi_accounts": len(meta.get("config", {}).get("upi_accounts", [])),
                         "timezone": meta.get("config", {}).get("timezone")}
+                sync['personal_rules'] = [{key: rule[key] for key in ('id', 'label', 'note')} for rule in meta.get('personal_rules', [])]
                 previous_html = args.output.read_text() if args.output.exists() else None
                 page = render(enriched, args.from_date, args.to_date, existing=None if args.upgrade_template else previous_html, sync=sync)
                 if args.upgrade_template and previous_html is not None:

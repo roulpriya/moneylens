@@ -1,11 +1,13 @@
 ---
 name: moneylens-automation
-description: Run MoneyLens daily after setup to fetch new Gmail card and UPI debit/credit alerts and card statements, unlock PDFs with saved Keychain passwords, reconcile alerts, save validated data, and refresh only the data in the existing HTML spending report. Use for scheduled or manual MoneyLens syncs, not interactive onboarding.
+description: Run MoneyLens after setup to fetch Gmail card and UPI transactions and statements, unlock PDFs with saved Keychain passwords, reconcile alerts, and refresh the existing HTML spending report. Use for scheduled or manual syncs and user-requested personal notes or categorization rules; use setup for onboarding.
 ---
 
 # MoneyLens daily automation
 
 Update the persistent spending ledger and the **same HTML report**. The user has authorized automatic saving of validated transactions during setup. Hold uncertain items for review. The UI is a committed asset at `assets/report-template.html`; normal runs change only the report's bounded JSON data block. Do not redesign the UI, edit the template/helpers/skills, modify Git, or generate a replacement layout.
+
+For a personal note or categorization correction, use [personal context](references/personal-context.md) and refresh the report. A mailbox scan is unnecessary for a correction to already saved data.
 
 ## Preconditions
 
@@ -22,6 +24,7 @@ Update the persistent spending ledger and the **same HTML report**. The user has
 5. **Retry bookkeeping.** Use `runtime_state.py retry-add` for every failed/unresolved source not already represented by a staged issue; remove queue entries only after successful processing or a justified exclusion. A document failure does not make the whole mailbox scan incomplete if it is durably queued. A search/pagination/authentication failure does: keep the previous scan cursor.
 For UPI use `channel: "upi"` and the correct `account_type`. A successful bank debit is `upi_debit`; a received amount is `upi_credit`, not automatically a refund or income. Explicit own-account transfers are `transfer_out`/`transfer_in` and excluded from spending. Card-bill payments remain repayments, not new expenses. Card-backed UPI stays on the confirmed card account and reconciles against its statement. The optional `gmail_transactions.py` helper covers observed HDFC/ICICI layouts; unfamiliar notices still require source-based interpretation, never silent omission.
 6. **Update existing report data.** Run `ledger.py report --output <configured-report-path>` with the rolling three-month display dates (or an explicit user range). This reads the committed template only when the report is first created; subsequent writes replace its JSON data block and preserve every byte outside it. Keep all ledger history. Do not delete/recreate an incompatible or damaged report; report the problem for setup repair. Use the same Documents report path every day, default `~/Documents/MoneyLens/report.html`, not a new dated report.
+   Report generation automatically applies the user's private personal rules and transaction notes, including to newly ingested records. Preserve these during sync; do not replace rules with generic merchant guesses. Notes and rule-based assumptions are separate from bank evidence. For a user-requested category correction, personal note, or reusable rule, read [personal context](references/personal-context.md); save the change privately and refresh the same report. Do not put personal payee facts in this skill or Git.
 7. **Complete the scan.** Call `runtime_state.py finish-run --run-id ID --search-complete` only after all search pages and source dispositions are durable and the report update succeeds. On a partial search or run error, finish with `--error` and no complete flag; never advance its cursor. Refresh report data after finishing to expose the latest sync/retry status. A run with zero new records still checks retries and updates its data status. Expired leases recover from crashes on later runs.
 
 ## Output
