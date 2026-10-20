@@ -45,6 +45,12 @@ def hash_value(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
 
 
+def canonical_category(value):
+    if ' '.join(value.casefold().split()) in {'software and subscriptions', 'software & subscriptions', 'subscriptions'}:
+        return 'Subscriptions'
+    return value
+
+
 def normalize(payload):
     require(isinstance(payload, dict), "Statement input must be an object")
     allowed = {"source", "account_key", "account_label", "issuer", "period_start", "period_end", "currency",
@@ -95,7 +101,7 @@ def normalize(payload):
         require(row["channel"] in {"card", "upi", "bank"}, "Invalid payment channel")
         require(row["kind"] not in DEBITS or amount >= 0, "Debit amounts cannot be negative")
         require(row["kind"] not in CREDITS or amount <= 0, "Credit amounts cannot be positive")
-        row["category"] = text(row.get("category"), "category", 80)
+        row["category"] = canonical_category(text(row.get("category"), "category", 80))
         if row["kind"] == "payment":
             row["category"] = "Credit card payments"
         require(integer(row.get("page"), "page") > 0, "Page must be positive")

@@ -43,6 +43,8 @@ Date filters are inclusive transaction dates. Whole-statement checks apply befor
 
 ## Corrections and import
 
+Use `Subscriptions` as the shared category for recurring software and subscription charges. `Software and subscriptions` and `Software & subscriptions` are aliases, normalized for new extractions and existing report rows. Source categories remain available in report provenance; aliases do not create separate spending buckets or change financial identity.
+
 Restage the same source to correct a draft from evidence. Imported sources cannot be restaged. Source identity uses mailbox/message/attachment or exact filename if no attachment ID. Do not change IDs to bypass checks. Byte-identical attachments in one mailbox and identical account/cycle transaction multisets are skipped. Multisets preserve repeated-row multiplicity and ignore category/order differences.
 
 Cross-statement account/date/normalized merchant/amount/kind matches are potential overlap. They are checked dynamically against drafts and imported history. Resolve confirmed duplicates by removing only confirmed duplicate rows from the new draft and restaging it; omit now-inapplicable whole-statement checks and explain excluded page/rows in `resolution_notes`. `complete: true` then means all intended new rows are accounted for, not that the reduced payload reproduces the original document. If matches are proven distinct purchases, put those new zero-based row indices in `distinct_overlap_rows` and explain in `resolution_notes`. Do not automatically assert either resolution. Ask the user when evidence cannot distinguish cases.

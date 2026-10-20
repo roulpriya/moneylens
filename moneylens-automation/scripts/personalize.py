@@ -8,7 +8,7 @@ import re
 import sqlite3
 import sys
 
-from ledger import connect, default_dir, hash_value, integer, require, row_key, text
+from ledger import canonical_category, connect, default_dir, hash_value, integer, require, row_key, text
 
 
 def evidence_key(row):
@@ -110,6 +110,9 @@ def decorate(db, records):
                 if field in row: target[field] = row[field]
                 else: target.pop(field, None)
         if row.get('note') and not target.get('note'): target['note'] = row['note']
+    for record in result:
+        for row in record['payload']['transactions']:
+            row['category'] = canonical_category(row['category'])
     return result
 
 

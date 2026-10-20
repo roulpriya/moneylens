@@ -82,6 +82,20 @@ class PersonalizationTests(unittest.TestCase):
         with self.assertRaises(ValueError): annotate(self.db,sid,2,category='Shopping')
         with self.assertRaises(ValueError): validate_rules([{'id':'bad','label':'bad','category':'Dining','note':'bad','when':{'amount_gt':100000}}])
 
+    def test_legacy_and_new_subscription_labels_share_one_category(self):
+        p=fixture()
+        p['transactions'][0]['category']='Software and subscriptions'
+        p['transactions'][1]['category']='Subscriptions'
+        source=[{'id':'legacy','payload':p}]
+        before=copy.deepcopy(source)
+        rows=decorate(self.db,source)[0]['payload']['transactions']
+        self.assertEqual([r['category'] for r in rows[:2]],['Subscriptions','Subscriptions'])
+        self.assertEqual(source,before)
+        self.assertEqual(semantic_key(p),semantic_key(decorate(self.db,source)[0]['payload']))
+        self.assertEqual(normalize(p)['transactions'][0]['category'],'Subscriptions')
+        p['transactions'][0]['category']='Software & subscriptions'
+        self.assertEqual(normalize(p)['transactions'][0]['category'],'Subscriptions')
+
     def test_personal_payee_filter_excludes_businesses_and_opaque_ids(self):
         for value in ('Example Person', 'Mr A Kumar', 'R K', 'Singleperson'):
             self.assertTrue(name_like(value),value)
