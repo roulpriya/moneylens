@@ -1,0 +1,30 @@
+---
+name: moneylens-automation
+description: Run MoneyLens daily after setup to fetch new Gmail transaction alerts and card statements, unlock PDFs with saved Keychain passwords, reconcile alerts, save validated data, and refresh only the data in the existing HTML spending report. Use for scheduled or manual MoneyLens syncs, not interactive onboarding.
+---
+
+# MoneyLens daily automation
+
+Update the persistent spending ledger and the **same HTML report**. The user has authorized automatic saving of validated transactions during setup. Hold uncertain items for review. The UI is a committed asset at `assets/report-template.html`; normal runs change only the report's bounded JSON data block. Do not redesign the UI, edit the template/helpers/skills, modify Git, or generate a replacement layout.
+
+## Preconditions
+
+- Run `scripts/runtime_state.py status` for the configured data directory. Setup must be ready and have a confirmed card inventory. If not, route to `$moneylens-setup`; do not start onboarding or create a schedule inside this skill.
+- Verify the connected Gmail profile matches the configured mailbox on each run. Use connected Gmail tools, not the Electron adapter or scraped credentials. If unavailable/mismatched, preserve existing data/report and report the failure.
+- Run `runtime_state.py begin-run` for the scan window, retry queue, configuration, and exclusive run ID. If another run holds the lease, stop without duplicating work. The initial window is three calendar months; later windows overlap the last successful scan by three days to catch delayed emails. Revisit queued failures even if older than this window.
+
+## Sync
+
+1. **Fetch both sources.** Search for statement PDFs and successful individual card transaction alerts, consume all pages, and deduplicate source IDs. Read real content to exclude promotions, payment reminders, OTPs, declined/reversed attempts, balance-only notices, and pending authorization holds. Alerts should describe a successful movement; do not infer transactions from available limits or account balances. Keep receipt-date scanning separate from transaction-date reporting. Read [Gmail and extraction](references/gmail-and-extraction.md).
+2. **Identify the card.** Match only to a confirmed setup card using issuer and masked card evidence. Use its stored account key and Keychain scope; do not recompute identity from a different spelling of the issuer. A new/ambiguous card is queued for setup confirmation, not silently added. Continue processing other cards.
+3. **Unlock PDFs without interaction.** Run the cached native helper with `--no-prompt` and the confirmed scope. Never open a password dialog or try unrelated saved passwords. Missing/changed passwords, inaccessible Keychain, scanned-only/unsupported PDFs, and connector download failures go in the retry queue with a nonsecret reason. Continue other documents. Temporary PDFs, extraction JSON, and payload files are removed in `finally`; retain only structured records and Gmail provenance.
+4. **Save and reconcile.** Read [ledger contract](references/ledger-contract.md). Stage extracted statements with `ledger.py stage`; automatically `import` records whose validation issues are empty. Never clear issues to force import. Missing independent totals are disclosed, not represented as passed. Ingest clear alert emails via `ledger.py alert` with one successful movement per payload; these are provisional until supported by a statement. Capture exact shared bank transaction references when present. The report reconciles one-to-one reference matches against saved statement rows automatically. Similar date/merchant/amount without conclusive reference is held for review; use `reconcile` only with actual supporting evidence. Do not count an alert and its statement row twice. Preserve distinct identical purchases and corrections.
+5. **Retry bookkeeping.** Use `runtime_state.py retry-add` for every failed/unresolved source not already represented by a staged issue; remove queue entries only after successful processing or a justified exclusion. A document failure does not make the whole mailbox scan incomplete if it is durably queued. A search/pagination/authentication failure does: keep the previous scan cursor.
+6. **Update existing report data.** Run `ledger.py report --output <configured-report-path>` with the rolling three-month display dates (or an explicit user range). This reads the committed template only when the report is first created; subsequent writes replace its JSON data block and preserve every byte outside it. Keep all ledger history. Do not delete/recreate an incompatible or damaged report; report the problem for setup repair. Use the same path every day, not a new dated report.
+7. **Complete the scan.** Call `runtime_state.py finish-run --run-id ID --search-complete` only after all search pages and source dispositions are durable and the report update succeeds. On a partial search or run error, finish with `--error` and no complete flag; never advance its cursor. Refresh report data after finishing to expose the latest sync/retry status. A run with zero new records still checks retries and updates its data status. Expired leases recover from crashes on later runs.
+
+## Output
+
+Stay quiet while the monitored state is unchanged or non-actionable. Notify on meaningful new data, completion of initial backfill, failure, a new card, changed password, or required review. Give a short delta and the **existing** report link; mention provisional alerts, unresolved items, and coverage gaps. Do not send email, change mailbox labels/read state, initiate payments, or schedule additional jobs.
+
+Spending uses integer minor units, separate currencies, and transaction dates. Payments do not reduce spending; refunds do. Preserve category corrections. The ledger is local SQLite protected by file permissions, not application encryption. Full workflow/CLI details are in the linked references; PDF credentials never enter the database or report.

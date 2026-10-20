@@ -1,0 +1,4 @@
+interface:
+  display_name: "MoneyLens Automation"
+  short_description: "Daily Gmail sync into your existing spending report"
+  default_prompt: "Use $moneylens-automation to fetch new Gmail card alerts and statements and update the data in my existing report."

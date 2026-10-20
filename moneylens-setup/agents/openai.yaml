@@ -1,0 +1,4 @@
+interface:
+  display_name: "MoneyLens Setup"
+  short_description: "Confirm cards, save PDF passwords, and schedule sync"
+  default_prompt: "Use $moneylens-setup to connect Gmail, confirm my cards, save PDF passwords to Keychain, and enable daily reports."

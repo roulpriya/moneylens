@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; connect-src 'none'">
+<meta name="moneylens-template-version" content="2">
+<title>MoneyLens · Spending report</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1d302a;background:#f6f7f2;font-size:15px}*{box-sizing:border-box}body{margin:0}header{background:#183e33;color:#f6faf4;padding:32px max(24px,calc((100vw - 1280px)/2))}h1{font-size:34px;letter-spacing:-1.3px;margin:0 0 10px}h2{font-size:20px;margin:0 0 20px}.eyebrow{letter-spacing:2px;font-size:11px;font-weight:700;text-transform:uppercase;opacity:.8}.lead{color:#d4e5da;max-width:840px;line-height:1.6}main{max-width:1328px;margin:auto;padding:24px}.filters,.metrics,.columns{display:grid;gap:16px}.filters{grid-template-columns:repeat(4,1fr);padding:22px;background:white;border:1px solid #dfe6dd;border-radius:16px;margin-bottom:22px}label{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:600;color:#526258}select,input{width:100%;min-height:40px;padding:8px;border:1px solid #cdd8cd;border-radius:8px;background:#fafcf8;color:#1d302a;font:inherit}button{cursor:pointer}select:focus,input:focus{outline:2px solid #3d8565}.metrics{grid-template-columns:repeat(4,1fr);margin:20px 0}.card,.panel{background:white;border:1px solid #dfe6dd;border-radius:15px;padding:22px}.card .label{font-size:12px;color:#5f7065}.value{font-size:clamp(17px,2vw,27px);letter-spacing:-.8px;font-weight:600;margin:12px 0 8px;overflow-wrap:anywhere}.muted{color:#65746a;font-size:12px;line-height:1.6}.columns{grid-template-columns:1fr 1fr;margin:20px 0}.barrow{margin:15px 0}.barline{display:flex;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:7px}.track{height:7px;background:#edf2e9;border-radius:4px;overflow:hidden}.fill{height:100%;background:#488a67}.scroll{overflow:auto;max-height:560px}table{border-collapse:collapse;width:100%;font-size:12px;text-align:left;white-space:nowrap}td,th{border-bottom:1px solid #e8ece4;padding:12px 10px}th{color:#5e6e63;background:#fafcf8;position:sticky;top:0}td.merchant{white-space:normal;min-width:190px;max-width:420px}.badge{padding:4px 7px;background:#e8f2e6;border-radius:5px;font-size:10px}.warn{background:#fff3d3;color:#805b09;padding:14px;border-radius:10px;line-height:1.6;font-size:13px;margin:12px 0}.source{padding:16px 0;border-bottom:1px solid #edf0e8;font-size:13px;line-height:1.7;overflow-wrap:anywhere}details{margin-top:20px}summary{cursor:pointer;font-size:17px;font-weight:600}footer{padding:25px 0;color:#65746a;font-size:12px}#counts{font-size:13px;color:#65746a}@media(max-width:850px){.filters,.metrics{grid-template-columns:repeat(2,1fr)}.columns{grid-template-columns:1fr}main{padding:16px}}@media(max-width:450px){.metrics,.filters{grid-template-columns:1fr}header{padding:24px}h1{font-size:28px}}
+</style>
+<header><div class="eyebrow">MoneyLens · Gmail statements</div><h1>Your spending, in view.</h1><p class="lead">Validated transactions update automatically. Items needing review are listed separately and withheld from spending totals.</p></header>
+<main>
+<p id="sync-status" class="muted" role="status"></p>
+<div id="sync-issues"></div>
+<section class="filters" aria-label="Dashboard filters">
+<label>Currency<select id="currency"></select></label>
+<label>Month<select id="month"><option value="">All months</option></select></label>
+<label>Card / account<select id="account"><option value="">All accounts</option></select></label>
+<label>Record state<select id="state"><option value="">All eligible records</option><option value="draft">Needs review</option><option value="imported">Saved statements</option><option value="provisional">Recent card alerts</option><option value="matched">Reconciled alerts</option><option value="unresolved">Unresolved statements</option></select></label>
+<label>From transaction date<input id="from" type="date"></label><label>Through transaction date<input id="to" type="date"></label>
+<label>Find merchant or category<input id="search" placeholder="Search transactions"></label>
+</section>
+<p id="counts" role="status" aria-live="polite"></p>
+<div class="metrics" id="metrics"></div>
+<div class="columns"><section class="panel"><h2>Where it went</h2><p class="muted">Gross charges by category; refunds shown separately.</p><div id="categories"></div></section><section class="panel"><h2>Month by month</h2><div class="scroll"><table><thead><tr><th>Month</th><th>Gross charges</th><th>Net spending</th></tr></thead><tbody id="months"></tbody></table></div></section></div>
+<section class="panel"><h2>Transactions</h2><p class="muted">Positive amounts are debits; negative amounts are credits. Payments do not reduce spending. Ask Codex to correct a category using the merchant, date, and card.</p><div class="scroll"><table><thead><tr><th>Date</th><th>Merchant</th><th>Category</th><th>Movement</th><th>Amount</th><th>Card</th><th>State</th><th>Source page / row</th></tr></thead><tbody id="transactions"></tbody></table></div></section>
+<details class="panel"><summary>Statement coverage and checks</summary><p class="muted">Checks apply to the whole statement. “Unavailable” means no independent source check was provided. Listed Gmail IDs locate source records without retaining original PDFs.</p><div id="statements"></div></details>
+<footer id="footer"></footer>
+</main>
+<!-- MONEYLENS_DATA_START -->
+<script id="data" type="application/json">{"schema_version":2,"statements":[],"rows":[],"from":"","to":"","generated":null,"sync":{}}</script>
+<!-- MONEYLENS_DATA_END -->
+<script>
+'use strict';
+const data=JSON.parse(document.getElementById('data').textContent), $=id=>document.getElementById(id);
+function node(tag,text,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e}
+function money(amount,exp,code){amount=BigInt(amount);const negative=amount<0n;if(negative)amount=-amount;const scale=10n**BigInt(exp),whole=(amount/scale).toString().replace(/\B(?=(\d{3})+(?!\d))/g,',');return (negative?'−':'')+code+' '+whole+(exp?'.'+(amount%scale).toString().padStart(exp,'0'):'')}
+function sum(rows,predicate=()=>true){return rows.reduce((total,r)=>total+(predicate(r)?BigInt(r.amount_minor):0n),0n)}
+function option(id,value,label){const e=node('option',label);e.value=value;$(id).append(e)}
+const currencies=[...new Set(data.rows.map(r=>r.currency))].sort();currencies.forEach(c=>option('currency',c,c));if(!currencies.length)option('currency','','No transactions');
+[...new Set(data.rows.map(r=>r.date.slice(0,7)))].sort().reverse().forEach(m=>option('month',m,m));
+const accounts=new Map(data.rows.map(r=>[r.account_key,r.account]));accounts.forEach((label,key)=>option('account',key,label));
+$('from').value=data.from;$('to').value=data.to;
+function update(){
+ const code=$('currency').value,month=$('month').value,account=$('account').value,state=$('state').value,query=$('search').value.toLowerCase();
+ const visible=data.rows.filter(r=>(!code||r.currency===code)&&(!month||r.date.startsWith(month))&&(!account||r.account_key===account)&&(!state?!r.suppressed:(state==='unresolved'?r.blocked:r.status===state))&&(!$('from').value||r.date>=$('from').value)&&(!$('to').value||r.date<=$('to').value)&&(!query||(r.merchant+' '+r.category).toLowerCase().includes(query)));
+ const included=visible.filter(r=>!r.blocked&&!r.suppressed),exp=visible[0]?.exponent??data.rows.find(r=>r.currency===code)?.exponent??2,fmt=n=>money(n,exp,code||'');
+ const gross=sum(included,r=>['purchase','fee','interest','cash_advance','adjustment_debit'].includes(r.kind)),refunds=-sum(included,r=>['refund','adjustment_credit'].includes(r.kind)),payments=-sum(included,r=>r.kind==='payment'),fees=sum(included,r=>['fee','interest'].includes(r.kind));
+ $('counts').textContent=`Included rows: ${included.length} · Provisional alerts: ${visible.filter(r=>r.status==='provisional').length} · Withheld rows: ${visible.filter(r=>r.blocked).length}. Repayments: ${fmt(payments)}. Fees and interest within gross charges: ${fmt(fees)}.`;
+ const metrics=[['Gross charges',gross,'Purchases, fees, interest, and debit adjustments'],['Refunds / credit adjustments',refunds,'Reduces net spending; excludes repayments'],['Net spending',gross-refunds,'Gross charges less refunds and credit adjustments'],['Transactions',BigInt(included.length),'Eligible transaction rows in this view']];
+ $('metrics').replaceChildren(...metrics.map(([label,value,hint],i)=>{const card=node('div',undefined,'card');card.append(node('div',label,'label'),node('div',i===3?value.toString():fmt(value),'value'),node('div',hint,'muted'));return card}));
+ const category=new Map();included.filter(r=>r.amount_minor>0&&r.kind!=='payment').forEach(r=>category.set(r.category,(category.get(r.category)||0n)+BigInt(r.amount_minor)));
+ const cats=[...category].sort((a,b)=>a[1]>b[1]?-1:a[1]<b[1]?1:0);$('categories').replaceChildren(...cats.map(([label,value])=>{const item=node('div',undefined,'barrow'),line=node('div',undefined,'barline'),track=node('div',undefined,'track'),fill=node('div',undefined,'fill');line.append(node('span',label),node('span',fmt(value)));fill.style.width=(gross>0n?Number(value*10000n/gross)/100:0)+'%';track.append(fill);item.append(line,track);return item}));if(!cats.length)$('categories').append(node('p','No eligible spending in this view.','muted'));
+ const monthly=new Map();included.filter(r=>r.kind!=='payment').forEach(r=>{const key=r.date.slice(0,7),amount=BigInt(r.amount_minor),v=monthly.get(key)||[0n,0n];if(amount>0n)v[0]+=amount;v[1]+=amount;monthly.set(key,v)});
+ $('months').replaceChildren(...[...monthly].sort((a,b)=>b[0].localeCompare(a[0])).map(([m,v])=>{const tr=node('tr');[m,fmt(v[0]),fmt(v[1])].forEach(x=>tr.append(node('td',x)));return tr}));
+ $('transactions').replaceChildren(...[...visible].sort((a,b)=>b.date.localeCompare(a.date)).map(r=>{const tr=node('tr');[r.date,r.merchant,r.category,r.kind.replaceAll('_',' '),fmt(r.amount_minor),r.account,r.blocked?'Needs review':r.status==='provisional'?'Provisional alert':r.status==='matched'?'Reconciled':r.status==='draft'?'Staged':'Saved',r.status==='provisional'||r.status==='matched'||r.status==='needs_review'?'Gmail alert':'Page '+r.page+' · row '+r.row].forEach((x,i)=>tr.append(node('td',x,i===1?'merchant':undefined)));return tr}));
+ if(!visible.length){const tr=node('tr'),td=node('td','No transactions match these filters.');td.colSpan=8;tr.append(td);$('transactions').append(tr)}
+}
+$('statements').replaceChildren(...data.statements.map(s=>{const div=node('div',undefined,'source');div.append(node('strong',s.account+' · '+s.currency+' · '+s.period+(s.record_type==='alert'?' · Card alert':' · Statement')),node('div',s.status.toUpperCase()+' · '+s.id,'muted'),node('div','Source: Gmail message '+s.source.message_id+' / '+s.source.filename,'muted'));if(s.checks.issues.length)div.append(node('div',s.checks.issues.join(' · '),'warn'));div.append(node('div','Passed: '+(s.checks.passed_checks.join(', ')||'No independent checks')+'. Unavailable: '+(s.checks.unavailable_checks.join(', ')||'None')+'.','muted'));if(s.resolution_notes)div.append(node('div','Resolution: '+s.resolution_notes,'muted'));return div}));
+if(!data.statements.length)$('statements').append(node('p','No statements staged or imported.','muted'));
+const sync=data.sync||{};
+const localTime=value=>new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short',...(sync.timezone?{timeZone:sync.timezone}:{})}).format(new Date(value));
+$('sync-status').textContent=(sync.cards?sync.cards+' confirmed cards · ':'')+(sync.last_success?'Last completed Gmail scan: '+localTime(sync.last_success):'No completed daily scan yet.')+' · Recent alerts remain provisional until reconciled with a statement.';
+const pending=sync.pending_sources||[];
+if(pending.length||sync.last_run?.success===false){const message=node('div',(pending.length?pending.length+(pending.length===1?' source needs attention. ':' sources need attention. '):'')+(sync.last_run?.success===false?'The last scan was incomplete; earlier saved history remains available.':''),'warn');$('sync-issues').append(message);pending.forEach(p=>$('sync-issues').append(node('div','Gmail message '+p.message_id+': '+p.reason,'muted')))}
+$('footer').textContent=data.generated?'Updated '+localTime(data.generated)+' · Saved on this Mac.':'Template preview · No account data.';
+['currency','month','account','state','from','to','search'].forEach(id=>$(id).addEventListener('input',update));update();
+</script></html>
