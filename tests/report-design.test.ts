@@ -1,0 +1,35 @@
+import {test,expect} from 'bun:test';
+import {normalizeDesign,COMPONENTS} from '../src/report-design.js';
+
+test('appearance defaults match the reference Paper design',()=>{
+ const d=normalizeDesign(null);
+ expect(d.colors.background).toBe('#f4f5f7');expect(d.colors.header).toBe('#ffffff');
+ expect(d.order).toEqual(COMPONENTS.map(c=>c[0]));
+ expect(d.components).toEqual({});
+});
+test('saved layout is deduplicated, unknown sections ignored, new sections retained',()=>{
+ const d=normalizeDesign({version:1,order:['transactions','transactions','unknown','summary']});
+ expect(d.order.slice(0,2)).toEqual(['transactions','summary']);
+ expect(d.order).toHaveLength(COMPONENTS.length);expect(new Set(d.order).size).toBe(COMPONENTS.length);
+});
+test('saved colours accept hex only and ignore financial or arbitrary fields',()=>{
+ const d=normalizeDesign({version:1,account:'sensitive',colors:{background:'url(https://example.invalid)',accent:'#AA3300',chart:['red','#123456']},components:{transactions:'#334455',categories:'var(--anything)',unknown:'#123456'}});
+ expect(d.colors.background).toBe('#f4f5f7');expect(d.colors.accent).toBe('#AA3300');
+ expect(d.colors.chart[0]).toBe('#1e2a78');expect(d.colors.chart[1]).toBe('#123456');
+ expect(d.components).toEqual({transactions:'#334455'});expect('account' in d).toBe(false);
+});
+test('unsupported settings reset safely and presets never share mutable colour arrays',()=>{
+ expect(normalizeDesign({version:99,theme:'midnight'}).theme).toBe('paper');
+ const d=normalizeDesign({version:1,theme:'midnight'});d.colors.chart[0]='#000000';
+ expect(normalizeDesign({version:1,theme:'midnight'}).colors.chart[0]).toBe('#aac798');
+});
+
+test('existing Sage settings survive upgrade, including colours and section order',()=>{
+ const d=normalizeDesign({version:1,theme:'sage',colors:{accent:'#123456'},order:['expenses','actuals','categories'],components:{actuals:'#abc123'}});
+ expect(d.theme).toBe('sage');expect(d.colors.background).toBe('#f4f6f1');expect(d.colors.accent).toBe('#123456');
+ expect(d.order.slice(0,3)).toEqual(['expenses','actuals','categories']);expect(d.order).toContain('daily');expect(d.components.actuals).toBe('#abc123');
+});
+test('malformed preset names cannot access inherited object properties',()=>{
+ expect(normalizeDesign({version:1,theme:'__proto__'}).theme).toBe('paper');
+ expect(normalizeDesign({version:1,theme:'constructor'}).theme).toBe('paper');
+});
