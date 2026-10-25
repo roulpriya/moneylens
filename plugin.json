@@ -8,21 +8,36 @@
   },
   "repository": "https://github.com/roulpriya/moneylens",
   "license": "MIT",
-  "keywords": ["finance", "personal finance", "budget", "expenses", "spending", "statements", "email", "transfers"],
+  "keywords": [
+    "finance",
+    "personal finance",
+    "budget",
+    "expenses",
+    "spending",
+    "statements",
+    "email",
+    "transfers"
+  ],
   "extensions": {
     "com.openai": {
       "onboardingSkill": "./skills/setup/SKILL.md",
       "interface": {
         "displayName": "MoneyLens",
-        "shortDescription": "Spending reports from your email",
-        "longDescription": "MoneyLens turns your financial emails, bank and card statements, and transaction alerts into a spending report. It keeps a local ledger, matches alerts against statements, and shows spending, money in, transfers and anything that needs review. Confirmed and provisional amounts stay separate, and gaps in your sources stay visible.\n\nRequirements: a local agent session, Python 3.10 or later (your agent can install it), and an email MCP provider that can read the messages and attachments you select. Scheduled updates also need your agent's scheduling tools. Installing the plugin doesn't connect email or create a schedule. Tested with Codex on macOS and Linux using Gmail. Other agents and email providers haven't been verified.\n\nPrivacy: your ledger and report are saved on your device. PDF extraction, reconciliation, calculations and report generation run locally. Your AI host and email connector still process the email and statement content your agent reads, under their own policies and your account settings. Local storage doesn't mean all processing stays on your device.\n\nProtected PDFs: setup looks for unlock instructions in the email and in issuer guidance first, and only asks you for what's missing. If needed, a local form collects the details outside the AI conversation and checks them against the PDF. Working unlock values are stored locally in plaintext files with owner-only permissions so updates can run unattended. The ledger and report rely on filesystem permissions, not app-level encryption.\n\nLimits: MoneyLens only sees what's in your email. It doesn't connect to bank APIs, SMS or payment apps, and scanned PDFs may need extra handling. Check unresolved items and their sources before relying on a total. MoneyLens is a reporting tool, not financial, investment, tax or legal advice.",
+        "shortDescription": "Know where your money goes",
+        "longDescription": "MoneyLens turns your bank and card emails into a clear picture of your money. Bring statements and transaction alerts together in one spending report, see where your money goes, and track money in and transfers.\n\nExplore spending by category, correct merchant categories, and keep the same report up to date with daily refreshes where supported. MoneyLens matches alerts against statements, keeps confirmed and provisional activity distinct, and highlights anything that needs your review.\n\nYou choose the email accounts to use. Your ledger and report are saved locally; your AI host and email connector process the source content used to build and update them.\n\nCoverage depends on the emails and statements available. Check unresolved items and the original sources before relying on a total.\n\nMoneyLens is a reporting tool, not financial, investment, tax or legal advice.",
         "developerName": "Priyambada Roul",
         "websiteURL": "https://roulpriya.github.io/moneylens/",
         "supportURL": "https://github.com/roulpriya/moneylens/issues",
         "privacyPolicyURL": "https://roulpriya.github.io/moneylens/policy.html",
         "category": "Productivity",
-        "brandColor": "#95E2BD",
-        "defaultPrompt": ["Set up MoneyLens and my daily spending report.", "Update my MoneyLens report."]
+        "brandColor": "#2D483B",
+        "defaultPrompt": [
+          "Set up MoneyLens and my daily spending report.",
+          "Update my MoneyLens report."
+        ],
+        "termsOfServiceURL": "https://roulpriya.github.io/moneylens/terms.html",
+        "logo": "./assets/moneylens.svg",
+        "composerIcon": "./assets/moneylens.svg"
       }
     }
   }

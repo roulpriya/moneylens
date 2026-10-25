@@ -42,6 +42,7 @@ def local_imports(data, package=False):
 
 def purpose(name):
     if name == 'plugin.json': return 'Plugin identity and host metadata'
+    if name == 'assets/moneylens.svg': return 'Required listing and composer icon; static vector asset'
     if name == 'LICENSE': return 'Required MIT license notice'
     if name == 'README.md': return 'Installation and usage information; not executable code'
     if name in ENTRYPOINTS: return 'Maintained skill runtime entry point'

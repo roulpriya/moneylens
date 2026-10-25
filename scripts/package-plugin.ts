@@ -7,7 +7,7 @@ await mkdir(target, {recursive: true});
 const modules = ['__init__', 'accounting', 'accounts', 'alerts', 'app', 'credentials', 'dashboard',
   'ledger', 'merchants', 'pdf_extract', 'personalize', 'private_files',
   'processing', 'statement_coverage', 'store', 'transactions', 'transfers', 'windows_access'];
-const files = ['plugin.json', 'LICENSE', 'README.md',
+const files = ['plugin.json', 'LICENSE', 'README.md', 'assets/moneylens.svg',
   ...['setup', 'automation'].flatMap(skill => [`skills/${skill}/SKILL.md`, `skills/${skill}/agents/openai.yaml`]),
   'skills/automation/assets/report-template.html',
   'skills/setup/assets/setup.html', 'skills/setup/scripts/setup_server.py',

@@ -13,6 +13,7 @@ export default defineConfig({
       input: {
         index: fileURLToPath(new URL('./index.html', import.meta.url)),
         policy: fileURLToPath(new URL('./policy.html', import.meta.url)),
+        terms: fileURLToPath(new URL('./terms.html', import.meta.url)),
       },
     },
   },

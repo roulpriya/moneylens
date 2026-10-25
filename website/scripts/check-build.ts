@@ -25,7 +25,7 @@ async function walk(directory: string) {
 }
 await walk(output);
 
-for (const required of ['index.html', 'policy.html', 'favicon.svg', 'robots.txt']) {
+for (const required of ['index.html', 'policy.html', 'terms.html', 'favicon.svg', 'robots.txt']) {
   if (!files.includes(resolve(output, required))) throw new Error(`Missing public page: ${required}`);
 }
 
