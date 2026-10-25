@@ -1,6 +1,6 @@
 ---
 name: automation
-description: Keep an existing MoneyLens ledger and spending report up to date from the financial emails and accounts confirmed during setup. Collect transaction notices and statement PDFs through email MCP, reuse cached merchant categories or classify new merchants, and reconcile provisional transactions against authoritative statements. Refresh spending, incoming money, transfers, and items needing review. Use for scheduled or manual updates and transaction/category corrections; use setup for new accounts, PDF access repair, or schedule changes.
+description: Keep an existing MoneyLens ledger and spending report up to date from the financial emails and accounts confirmed during setup. Collect transaction notices and statement PDFs through email MCP, reuse saved merchant categories or classify new merchants, and reconcile provisional transactions against statements. Refresh spending, incoming money, transfers, and items needing review. Use for scheduled or manual updates and transaction/category corrections; use setup for new accounts, PDF access repair, or schedule changes.
 ---
 
 # Update MoneyLens
@@ -13,6 +13,8 @@ Command shorthands use the installed Python 3.10+ executable and absolute skill 
 - `<pdf-extract>`: `<python> <automation-skill>/scripts/pdf_extract.py`
 
 Quote paths and JSON for the current shell. No script pulls email, calls MCP, acquires workflow leases, manages scan runs/cursors/retry queues, or schedules work. The agent handles selection, collection dates, pagination, source inventories, unresolved retrievals, and scheduling through the appropriate tools. SQLite transactions protect local accounting writes only.
+
+Before asking anything, check prior answers, confirmed saved choices, authorized source evidence, and applicable documented rules. Never ask a question whose answer is already available or can be derived from verified evidence. Reuse the answer or compute the result; do not request confirmation of an unchanged choice. Ask only about a necessary unresolved fact or genuine conflict after those checks, and explain the exact gap. Do not guess private identity values or infer expanded mailbox authorization.
 
 When a missing or ambiguous choice requires user input, use the host's available structured input tool, such as `request_user_input`, `request_user_input_async`, or `ask_user`, in the current mode instead of asking only in prose. Ask exactly one question per tool call and request only one value or decision: the UI has one text-input field. Never combine multiple details or submit a list of questions. Wait for the answer before asking the next question; continue independent work while waiting. Ask only for unresolved choices, and reuse existing answers and recurring authorization. If no suitable input tool is available, ask one concise question in chat and wait. Route credential repair to `$setup` and its private credential workflow.
 
@@ -91,7 +93,7 @@ For an available statement with a resolved account/currency and evidenced inclus
 
 Preserve original alerts as audit evidence; suppression is not proof of a row-level duplicate. Apply the same precedence to later-arriving alerts. Partial statements keep their gaps: alerts must not fill missing rows/pages or imply completeness. An unreadable PDF or unresolved identity cannot establish a period by guesswork.
 
-Keep routine statement-precedence bookkeeping out of progress updates, final summaries, headline metrics and Review. The report's collapsed Accounting treatment and exclusions audit explains covered alerts separately from validation blocks, category review, transfers/repayments, investment principal, duplicates, and date exclusions. Covered alerts stay out of transaction rows and financial totals. Summarize effective confirmed/provisional amounts and genuine gaps; newly retrieved covered alerts alone do not warrant a notification.
+Keep statement-covered alert counts and routine statement-precedence explanations out of progress updates, final summaries, and the report, including its collapsed Accounting treatment and exclusions audit. Keep that audit history internal unless the user requests it. The report audit explains validation blocks, category review, transfers/repayments, investment principal, duplicates, and date exclusions. Covered alerts stay out of transaction rows and financial totals. Summarize effective confirmed/provisional amounts and genuine gaps; newly retrieved covered alerts alone do not warrant a notification.
 
 Every statement occurrence must be retained, proven duplicate-linked, or visibly held for review. Show **Completeness not verified** for missing pages, sections, rows, independent checks, or report visibility. All account/currency sections, including imported ones, must meet their own source-evidence checks. Keep whole-document completeness separate from section eligibility; do not block a reconciled savings section because a deposit summary omits movement history or interest posting dates. Never invent missing counterpart withdrawals or convert cumulative interest into dated transactions.
 

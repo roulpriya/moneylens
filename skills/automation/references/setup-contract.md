@@ -1,6 +1,6 @@
 # Local account settings and agent-owned setup
 
-The agent verifies connected email MCP access, selects mailboxes with the user, discovers sources, reads password instructions including image-only content, maintains the private source inventory, and uses scheduling tools directly when authorized. User-input tools must ask one question and request one value/decision at a time, then wait for the answer; never bundle questions into the single input field. Processing scripts do accounting and PDF work only. They do not verify live connections, inspect scheduler files, manage leases, or track scans/retrieval queues.
+The agent verifies connected email MCP access, selects mailboxes with the user, discovers sources, reads password instructions including image-only content, maintains the private source inventory, and uses scheduling tools directly when authorized. Follow [setup's user-input guidance](../../setup/SKILL.md): prefer meaningful choices with a supported recommendation, ask one question for one value/decision at a time, and wait for each answer; never bundle questions into the single input field. Processing scripts do accounting and PDF work only. They do not verify live connections, inspect scheduler files, manage leases, or track scans/retrieval queues.
 
 `<moneylens>` means `<python> <automation-skill>/scripts/moneylens.py`.
 `<pdf-extract>` means `<python> <automation-skill>/scripts/pdf_extract.py`.

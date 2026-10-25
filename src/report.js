@@ -2,39 +2,44 @@ import { initializeReportDesign } from './report-design.js';
 'use strict';
 var data = JSON.parse(document.getElementById("data").textContent);
 var $ = (id) => document.getElementById(id);
-let activeChartBar = null;
-function hideChartTooltip(bar) {
-  if (bar && activeChartBar !== bar) return;
-  activeChartBar?.removeAttribute('aria-describedby');
-  activeChartBar = null;
-  $('chart-tooltip').hidden = true;
+let activeTooltip = null;
+function hideTooltip(target) {
+  if (target && activeTooltip?.target !== target) return;
+  if (activeTooltip) {
+    activeTooltip.target.removeAttribute('aria-describedby');
+    activeTooltip.element.hidden = true;
+    activeTooltip = null;
+  }
 }
-function chartTooltip(bar, text, focusable = false) {
-  bar.setAttribute('aria-label', text);
-  if (focusable) { bar.tabIndex = 0; bar.setAttribute('role', 'img'); }
+function hoverTooltip(target, text, tooltipId) {
   const show = () => {
-    hideChartTooltip();
-    activeChartBar = bar;
-    const tooltip = $('chart-tooltip');
+    hideTooltip();
+    const tooltip = $(tooltipId);
+    activeTooltip = { target, element: tooltip };
     tooltip.textContent = text;
     tooltip.hidden = false;
-    bar.setAttribute('aria-describedby', 'chart-tooltip');
-    const anchor = bar.getBoundingClientRect(), hint = tooltip.getBoundingClientRect();
+    target.setAttribute('aria-describedby', tooltipId);
+    const anchor = target.getBoundingClientRect(), hint = tooltip.getBoundingClientRect();
     const width = globalThis.innerWidth || document.documentElement.clientWidth;
     const height = globalThis.innerHeight || document.documentElement.clientHeight;
     tooltip.style.left = Math.max(8, Math.min(anchor.left + anchor.width / 2 - hint.width / 2, width - hint.width - 8)) + 'px';
     const above = anchor.top - hint.height - 12;
     tooltip.style.top = Math.max(8, Math.min(above >= 8 ? above : anchor.bottom + 12, height - hint.height - 8)) + 'px';
   };
-  bar.addEventListener('pointerenter', show);
-  bar.addEventListener('pointerleave', () => hideChartTooltip(bar));
-  bar.addEventListener('focus', show);
-  bar.addEventListener('click', show);
-  bar.addEventListener('blur', () => hideChartTooltip(bar));
-  bar.addEventListener('keydown', event => { if (event.key === 'Escape') hideChartTooltip(bar); });
+  target.addEventListener('pointerenter', show);
+  target.addEventListener('pointerleave', () => hideTooltip(target));
+  target.addEventListener('focus', show);
+  target.addEventListener('blur', () => hideTooltip(target));
+  target.addEventListener('keydown', event => { if (event.key === 'Escape') hideTooltip(target); });
+  return show;
 }
-globalThis.addEventListener?.('scroll', () => hideChartTooltip(), true);
-globalThis.addEventListener?.('resize', () => hideChartTooltip());
+function chartTooltip(bar, text, focusable = false) {
+  bar.setAttribute('aria-label', text);
+  if (focusable) { bar.tabIndex = 0; bar.setAttribute('role', 'img'); }
+  bar.addEventListener('click', hoverTooltip(bar, text, 'chart-tooltip'));
+}
+globalThis.addEventListener?.('scroll', () => hideTooltip(), true);
+globalThis.addEventListener?.('resize', () => hideTooltip());
 function node(tag, text, cls) {
   const e = document.createElement(tag);
   if (text !== undefined)
@@ -76,6 +81,8 @@ function option(id, value, label) {
 var spendKinds = new Set(["purchase", "debit", "fee", "interest", "cash_advance", "adjustment_debit", "refund", "adjustment_credit"]);
 // The decorated exclusion carries ownership proof. Movement labels alone do not.
 var isInvestment = (r) => ['investment', 'investment_withdrawal'].includes(r.accounting_treatment);
+// One display bucket for principal in either direction; saved source categories stay intact.
+data.rows = data.rows.map(r => isInvestment(r) ? { ...r, original_category: r.original_category || r.category, category: 'Investment' } : r);
 var isTransfer = (r) => r.excluded_from_spending === true && !isInvestment(r);
 var unverifiedTransferOut = (r) => r.kind === "transfer_out" && !isTransfer(r);
 var eligible = (r) => !r.blocked && !r.suppressed && ["imported", "posted", "provisional", "draft"].includes(r.status);
@@ -177,15 +184,11 @@ function transactionSources(r) {
 function sourceName(source) {
   return source?.filename && source.filename !== "email-body" ? source.filename : source ? "Email message" : "Source not recorded";
 }
-function transactionSourceLink(r) {
-  const sources = transactionSources(r), first = sources[0];
+function transactionSourceTooltip(r, trigger) {
+  const sources = transactionSources(r);
   const location = [r.page != null ? "p. " + r.page : null, r.row != null ? "row " + r.row : null].filter(Boolean).join(", ");
-  const caption = [sourceName(first), sources.length > 1 ? "+" + (sources.length - 1) + (sources.length === 2 ? " source" : " sources") : null, first && location].filter(Boolean).join(" · ");
-  const button = node("button", caption, "link transaction-source");
-  button.type = "button";
-  button.setAttribute("aria-label", "View source for " + r.merchant + " on " + r.date);
-  button.addEventListener("click", () => showDetail(r, button));
-  return button;
+  const lines = sources.length ? sources.map(source => [sourceName(source), source.mailbox || source.mailbox_id].filter(Boolean).join(" · ")) : ["Source not recorded"];
+  hoverTooltip(trigger, [...lines, location].filter(Boolean).join("\n"), 'source-tooltip');
 }
 function spendingTreatment(r) {
   if (r.suppressed) return 'Duplicate · Not counted';
@@ -197,6 +200,7 @@ function spendingTreatment(r) {
   return ['payment','repayment'].includes(r.kind) ? 'Repayment · Excluded from spending' : 'Incoming money · Excluded from spending';
 }
 function showDetail(r, trigger) {
+  hideTooltip();
   detailTrigger = trigger;
   const statement = data.statements.find((s) => s.id === r.statement), sources = transactionSources(r), fmt = (n) => money(n, r.exponent, r.currency);
   const fields = [["Date", r.date], ["Merchant", r.merchant], ["Category", r.category], ["Kind", r.kind.replaceAll("_", " ")], ["Amount", fmt(r.amount_minor)], ["Account", r.account], ["State", stateLabel(r)], ["Spending treatment", spendingTreatment(r)], ["Payment type", r.channel ?? "Not provided"], ["Source record", r.statement || "Unavailable"], ["Source page / row", (r.page ?? "Unavailable") + " / " + (r.row ?? "Unavailable")]];
@@ -208,6 +212,8 @@ function showDetail(r, trigger) {
     fields.push(['Source row', r.duplicate_of ? 'Duplicate linked to ' + r.duplicate_of.statement + ' / row ' + r.duplicate_of.index + ': ' + r.duplicate_of.evidence : r.review_reason]);
   if (r.original_merchant && r.original_merchant !== r.merchant)
     fields.push(['Original description', r.original_merchant]);
+  if (r.original_category && r.original_category !== r.category)
+    fields.push(['Original category', r.original_category]);
   if (r.metadata?.display_note) fields.push(['Source note', r.metadata.display_note]);
   if (needsReview(r)) fields.push(['Review reasons', reviewReasons(r).join(' · ')]);
   fields.push(['Statement coverage', r.coverage_status || statement?.coverage?.status || statement?.checks?.coverage?.status || 'Completeness not verified']);
@@ -268,21 +274,19 @@ function renderExclusions() {
   const withinDates = r => (!$('from').value || r.date >= $('from').value) && (!$('to').value || r.date <= $('to').value) && (!effectiveMonth() || r.date.startsWith(effectiveMonth()));
   const scope = data.rows.filter(r => (!$('currency').value || r.currency === $('currency').value) && (!$('account').value || r.account_key === $('account').value) && (!$('channel').value || r.channel === $('channel').value));
   const rows = scope.filter(withinDates);
-  const covered = (data.covered_alerts || []).filter(r => (!$('currency').value || r.currency === $('currency').value) && (!$('account').value || r.account_key === $('account').value) && withinDates(r));
   const items = [
     [rows.filter(r => r.blocked || r.status === 'needs_review').length, 'Can’t be verified: not counted until resolved.'],
     [rows.filter(r => eligible(r) && spending(r) && r.category === 'Other').length, 'No category: still counted as spending.'],
     [rows.filter(r => eligible(r) && (isTransfer(r) || ['payment','repayment'].includes(r.kind))).length, 'Transfers and repayments: not counted as spending, still shown in cashflow.'],
     [rows.filter(r => eligible(r) && isInvestment(r)).length, 'Investments: not counted as spending or income, shown in cashflow.'],
     [rows.filter(r => r.suppressed).length, 'Duplicates: kept for reference, not counted.'],
-    [covered.length, 'Alerts matched to a statement: replaced by the statement entry. Counted by account, currency and dates.'],
     [scope.filter(r => r.date && !withinDates(r)).length, 'Outside your dates: saved, hidden for this range.']
   ];
   $('accounting-exclusions')?.replaceChildren(node('li', 'These counts follow your account, currency, payment type and date filters. Search, status and view don’t change them.'), ...items.map(([count, explanation]) => node('li', count + ' · ' + explanation)));
 }
 
 function update() {
-  hideChartTooltip();
+  hideTooltip();
   const filtered = filteredRows(), code = $("currency").value, exp = filtered[0]?.exponent ?? data.rows.find((r) => r.currency === code)?.exponent ?? data.statements.find((s)=>s.currency===code)?.exponent ?? null, fmt = (n) => money(n, exp, code || "");
   const visible = filtered.filter((r) => view === "all" ? true : view === "review" ? needsReview(r) : eligible(r) && (view === "spending" ? spending(r) : view === "cashflow" ? bankMovement(r) : view === "transfers" ? isTransfer(r) : !isTransfer(r) && !isInvestment(r) && r.amount_minor < 0));
   renderExclusions();
@@ -346,6 +350,7 @@ function update() {
     const td = node("td"), button = node("button", "View", "link");
     button.type = "button";
     button.setAttribute("aria-label", "Details for " + r.merchant + " on " + r.date);
+    transactionSourceTooltip(r, button);
     button.addEventListener("click", () => showDetail(r, button));
     td.append(button);
     tr.append(td);
@@ -355,11 +360,12 @@ function update() {
     const item = node("li", undefined, "review-item");
     const heading = node("div", undefined, "review-item-heading");
     heading.append(node("strong", r.merchant), amountDisplay(r, fmt, "span", "review-amount"));
-    item.append(heading, node("div", [prettyDate(r.date), r.account].filter(Boolean).join(" · "), "muted"), transactionSourceLink(r));
+    item.append(heading, node("div", [prettyDate(r.date), r.account].filter(Boolean).join(" · "), "muted"));
     reviewReasons(r).forEach(reason => item.append(node("p", reason, "review-reason")));
     const button = node("button", "View details", "link");
     button.type = "button";
     button.setAttribute("aria-label", "Details for " + r.merchant + " on " + r.date);
+    transactionSourceTooltip(r, button);
     button.addEventListener("click", () => showDetail(r, button));
     item.append(button);
     return item;
@@ -563,14 +569,14 @@ function renderActuals(rows,fmt) {
   const purchases=sum(expenses,r=>BigInt(r.amount_minor)>0n),refunds=-sum(expenses,r=>BigInt(r.amount_minor)<0n);
   const incoming=-sum(incomeBasis.rows),net=purchases-refunds;
   const bankBasis=preferredAmounts(rows,bankMovement);
+  const bankNet=-sum(bankBasis.rows);
   const cashflows=[
-    ['Bank inflows',-sum(bankBasis.rows,r=>r.amount_minor<0)],
-    ['Bank outflows',sum(bankBasis.rows,r=>r.amount_minor>0)],
-    ['Investment',sum(bankBasis.rows,r=>isInvestment(r)&&r.amount_minor>0)],
-    ['Investment withdrawal',-sum(bankBasis.rows,r=>isInvestment(r)&&r.amount_minor<0)],
-    ['Net bank cashflow',-sum(bankBasis.rows)]
+    ['Bank inflows',-sum(bankBasis.rows,r=>r.amount_minor<0),null],
+    ['Bank outflows',null,sum(bankBasis.rows,r=>r.amount_minor>0)],
+    ['Investment',-sum(bankBasis.rows,r=>isInvestment(r)&&r.amount_minor<0),sum(bankBasis.rows,r=>isInvestment(r)&&r.amount_minor>0)],
+    ['Net bank cashflow',bankNet>=0n?bankNet:null,bankNet<0n?-bankNet:null]
   ];
-  $('cashflow-summary')?.replaceChildren(...cashflows.map(([name,value])=>{const tr=node('tr');tr.append(node('th',(bankBasis.provisional?'Provisional ':'')+name),node('td',fmt(value),'num'));return tr;}));
+  $('cashflow-summary')?.replaceChildren(...cashflows.map(([name,inflow,outflow])=>{const tr=node('tr'),heading=node('th',(bankBasis.provisional?'Provisional ':'')+name);heading.setAttribute('scope','row');tr.append(heading,...[inflow,outflow].map(value=>node('td',value===null?'—':fmt(value),'num')));return tr;}));
   const pendingRows=rows.filter(r=>eligible(r)&&!confirmed(r)&&spending(r)),pending=sum(pendingRows);
   const label=(name,provisional=basis.provisional)=>provisional?'Provisional '+name[0].toLowerCase()+name.slice(1):name;
   const values=[['Period',effectiveMonth()?prettyMonth(effectiveMonth()):rangeText($('from').value,$('to').value)],[label('Money in',incomeBasis.provisional),fmt(incoming)],[label('Spending'),fmt(purchases)],[label('Refunds'),fmt(refunds)],[label('Net spend'),fmt(net)]];

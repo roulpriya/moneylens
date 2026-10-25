@@ -88,6 +88,9 @@ class PackagedReleaseTests(unittest.TestCase):
         for name in unlisted:self.assertFalse((release/name).exists(),name)
         self.assertTrue((release/'skills/automation/scripts/moneylens.py').is_file())
         self.assertTrue((release/'skills/setup/SKILL.md').is_file())
+        self.assertTrue((release/'skills/setup/assets/setup.html').is_file())
+        self.assertTrue((release/'skills/setup/scripts/setup_server.py').is_file())
+        self.assertFalse((release/'skills/automation/moneylens/preflight.py').exists())
         self.assertEqual(sorted(p.name for p in (release/'skills/automation/scripts').glob('*.py')),
                          ['moneylens.py','pdf_extract.py'])
 

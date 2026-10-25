@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>MoneyLens · Private setup</title>
+  <!-- SETUP_STYLES -->
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="/" aria-label="MoneyLens private setup"><svg viewBox="0 0 28 28" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="m18.5 18.5 6 6M8 14l2.6-2.6 2 2 3-3.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>MoneyLens</a><span class="local-badge">Private setup</span></header>
+  <main>
+    <section class="form-card" aria-labelledby="form-heading">
+      <h1 id="form-heading">Unlock your statement</h1>
+      <p class="lede">Add the missing details to open this PDF.</p>
+      <div id="statement-details" class="statement-details" hidden></div>
+      <section id="source-email" class="source-email" aria-label="Source email" hidden><p id="email-subject"></p><p id="email-date" class="muted"></p><a id="email-link" target="_blank" rel="noopener noreferrer" hidden>Open source email ↗</a></section>
+      <section id="unlock-instructions" class="unlock-instructions" aria-labelledby="instructions-heading" hidden><p id="instructions-heading" class="section-label">Unlock instructions</p><p id="instructions-text"></p></section>
+      <p id="request-context" class="request-context" hidden></p>
+      <form id="setup-form" autocomplete="off">
+        <div id="setup-fields" class="fields"></div>
+        <p id="storage-note" class="storage-note">Saved in a private, unencrypted local file. Entries aren’t sent to your AI conversation.</p>
+        <div class="actions"><button id="save" class="primary" type="submit" disabled>Save details</button><button id="cancel" class="secondary" type="button">Cancel</button></div>
+      </form>
+      <div id="result" class="result" role="status" aria-live="polite"></div>
+    </section>
+  </main>
+  <script id="setup-config" type="application/json">{"fields":[],"scope":"","context":"","token":""}</script>
+  <!-- SETUP_SCRIPT -->
+</body>
+</html>

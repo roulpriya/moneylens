@@ -35,8 +35,10 @@ jobs:
         run: npm run test:ui
       - name: Verify compiled template matches its Bun source
         run: npm run check:report
+      - name: Verify private setup template matches its source
+        run: npm run check:setup
       - name: Verify committed HTML is reproducible
-        run: git diff --exit-code -- skills/automation/assets/report-template.html
+        run: git diff --exit-code -- skills/automation/assets/report-template.html skills/setup/assets/setup.html
       - name: Run synthetic behavioral tests
         run: python -m unittest discover -s tests -v
       - name: Check the portable Python command interface

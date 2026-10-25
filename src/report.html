@@ -24,7 +24,7 @@
 <div class="hero-money-card" role="group" aria-labelledby="hero-out-label"><p id="hero-out-label" class="eyebrow">Money out</p><div id="hero-total" class="hero-total"></div><p id="hero-label" class="money-context">Net spend</p><span id="hero-provisional" class="provisional-note" hidden></span></div>
 </div>
 <div id="hero-metrics" class="hero-metrics"></div></div>
-<details id="actuals-breakdown" class="actuals-reconciliation" hidden><summary>Breakdown</summary><table aria-label="Monthly actuals"><tbody id="actuals-summary"></tbody></table><section id="cashflow-panel" class="cashflow-breakdown"><h3>Bank movements</h3><div class="scroll"><table aria-label="Bank cashflow"><tbody id="cashflow-summary"></tbody></table></div></section>
+<details id="actuals-breakdown" class="actuals-reconciliation" hidden><summary>Breakdown</summary><table aria-label="Monthly actuals"><tbody id="actuals-summary"></tbody></table><section id="cashflow-panel" class="cashflow-breakdown"><h3>Bank movements</h3><div class="scroll"><table aria-label="Bank cashflow"><thead><tr><th scope="col">Movement</th><th scope="col" class="num">In</th><th scope="col" class="num">Out</th></tr></thead><tbody id="cashflow-summary"></tbody></table></div></section>
 </details></section>
 <section id="summary-panel" class="component full-width" data-component="summary" aria-labelledby="view-title"><h2 id="view-title" class="sr-only">Spending summary</h2><div class="metrics" id="metrics"></div></section>
 <section id="spending-breakdown" class="panel component category-panel" data-component="categories"><div class="section-heading"><h2>Where it went</h2></div><div class="category-composition"><div id="category-chart" class="category-chart" role="img" aria-label="Spending by category"><div class="donut-center"><strong id="category-total"></strong><span id="category-caption">before refunds</span></div></div><div class="category-summary"><div class="category-column-labels"><span>Category</span><span>Net spend</span><span title="Share of spending">Share</span></div><div id="categories" class="category-legend"></div><div id="expenses-panel" hidden><div id="actual-expenses" class="category-legend"></div></div><button id="expenses-title" class="link category-expand" type="button" aria-expanded="false" aria-controls="expenses-panel">Show more</button>
@@ -38,6 +38,7 @@
 <details id="merchant-categories" class="panel component full-width" data-component="merchants" hidden><summary>Saved merchant categories</summary><div id="merchant-list"></div></details>
 </div><details id="accounting-filters" class="more-filters" hidden><summary>What’s counted</summary><ul id="accounting-exclusions"></ul></details><footer class="report-footer"><span id="footer"></span><button id="edit-report" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="report-editor">Customize</button></footer></main>
 <div id="chart-tooltip" class="chart-tooltip" role="tooltip" hidden></div>
+<div id="source-tooltip" class="source-tooltip" role="tooltip" hidden></div>
 <!-- MONEYLENS_DATA_START -->
 <script id="data" type="application/json">{"schema_version":4,"statements":[],"rows":[],"from":"","to":"","generated":null,"sync":{}}</script>
 <!-- MONEYLENS_DATA_END -->

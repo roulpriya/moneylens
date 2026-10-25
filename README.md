@@ -3,7 +3,7 @@
 [![Validate](https://github.com/roulpriya/moneylens/actions/workflows/validate.yml/badge.svg)](https://github.com/roulpriya/moneylens/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A ChatGPT and Codex plugin that turns email account statements and transaction notifications into a local spending report. MoneyLens keeps a persistent SQLite ledger, reconciles alerts against statements, and updates the same HTML report on each sync.
+A ChatGPT and Codex plugin that turns your bank and card emails into a local spending report. MoneyLens keeps a SQLite ledger on your machine, matches alerts against statements, and updates the same HTML report each time it syncs.
 
 ## Install the plugin
 
@@ -45,7 +45,8 @@ Rolling schedules should pass fresh dates each run. See
 
 The collapsed Accounting treatment and exclusions audit separates validation
 blocks, uncategorized amounts that still count, transfers/repayments, investment
-principal, covered alerts, duplicates and rows outside selected dates. New UI
+principal, duplicates and rows outside selected dates. Statement-covered alert
+counts remain internal unless requested. New UI
 features require a report generated with the current template at a new path;
 ordinary refreshes preserve existing private HTML.
 

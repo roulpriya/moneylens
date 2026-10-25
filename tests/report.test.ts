@@ -641,6 +641,43 @@ test('transaction details preserve missing evidence, coverage gaps and completed
  expect(detail('complete')).toContain('Resolved');
 });
 
+test('transaction sources stay in hover and keyboard tooltips while details remain available',()=>{
+ const source={mailbox:'box-a',message_id:'message-a',filename:'statement.pdf'};
+ const e=neutralRender([{merchant:'Saved transaction',amount_minor:1200,page:3,row:'7'}],{
+  statements:[{id:'source',source,sources:[source,{mailbox:'box-b',message_id:'message-b',filename:'copy.pdf'}]}]
+ });
+ click(e,'tab-report');
+ const row=e.get('transactions')!.children[0],trigger=row.children[6].children[0],tooltip=e.get('source-tooltip')!;
+ expect(row.children[1].textContent).toBe('Saved transaction');
+ expect(row.textContent).not.toContain('statement.pdf');
+ expect(row.textContent).not.toContain('copy.pdf');
+ expect(tooltip.hidden).toBe(true);
+ trigger.listeners.pointerenter();
+ expect(tooltip.hidden).toBe(false);
+ expect(tooltip.textContent).toBe('statement.pdf · box-a\ncopy.pdf · box-b\np. 3, row 7');
+ expect(trigger.attributes['aria-describedby']).toBe('source-tooltip');
+ trigger.listeners.pointerleave();expect(tooltip.hidden).toBe(true);
+ expect(trigger.attributes['aria-describedby']).toBeUndefined();
+ trigger.listeners.focus();expect(tooltip.hidden).toBe(false);
+ trigger.listeners.keydown({key:'Escape'});expect(tooltip.hidden).toBe(true);
+ trigger.listeners.focus();trigger.listeners.click();
+ expect(tooltip.hidden).toBe(true);
+ expect(e.get('detail-fields')!.textContent).toContain('message-a');
+ expect(e.get('detail-fields')!.textContent).toContain('message-b');
+ trigger.listeners.focus();input(e,'search','unmatched');expect(tooltip.hidden).toBe(true);
+});
+
+test('source tooltips label email and missing evidence without inventing a statement',()=>{
+ const e=neutralRender([
+  {merchant:'Email alert',amount_minor:1200,source:{filename:'email-body',mailbox_id:'box-c',message_id:'alert'}},
+  {merchant:'Missing evidence',amount_minor:1000}
+ ]);
+ const show=(merchant:string)=>e.get('transactions')!.children.find(row=>row.children[1].textContent===merchant)!.children[6].children[0];
+ show('Email alert').listeners.focus();expect(e.get('source-tooltip')!.textContent).toContain('Email message · box-c');
+ show('Missing evidence').listeners.focus();expect(e.get('source-tooltip')!.textContent).toContain('Source not recorded');
+ show('Missing evidence').listeners.blur();expect(e.get('source-tooltip')!.hidden).toBe(true);
+});
+
 test('details retain all mailbox occurrences, direct email sources and unresolved rows safely',()=>{
  const unsafe='<img src=x onerror=alert(1)>';
  const source={mailbox:'box-a',message_id:'message-a',filename:unsafe};
@@ -659,7 +696,11 @@ test('details retain all mailbox occurrences, direct email sources and unresolve
  sourceLink('Alert source').listeners.click();expect(e.get('detail-fields')!.textContent).toContain('box-c');
  click(e,'view-review');
  const review=e.get('review-transactions')!.children.find(item=>item.textContent.includes('Unresolved source'))!;
- review.children.find(child=>child.className==='link transaction-source')!.listeners.click();
+ expect(review.textContent).not.toContain('copy.pdf');
+ const details=review.children.at(-1)!;
+ details.listeners.pointerenter();
+ expect(e.get('source-tooltip')!.textContent).toContain('copy.pdf');
+ details.listeners.click();
  expect(e.get('detail-fields')!.textContent).toContain('message-b');
 });
 
@@ -863,19 +904,25 @@ test('44-row cashflow fixture preserves withdrawals, salary, interest, and repay
   expect(e.get('hero-in-total')!.textContent).toBe('INR 2,001.25');
   expect(e.get('hero-metrics')!.children.every(card=>card.children.length===2)).toBe(true);
   expect(e.has('cashflow-note')).toBe(false);
-  expect(e.get('cashflow-summary')!.textContent).toContain('Investment withdrawalINR 1,100.00');
-  expect(e.get('cashflow-summary')!.textContent).toContain('InvestmentINR 500.00');
+  const investments=e.get('cashflow-summary')!.children.filter(row=>row.children[0].textContent==='Investment');
+  expect(investments).toHaveLength(1);
+  expect(investments[0].children.map(cell=>cell.textContent)).toEqual(['Investment','INR 1,100.00','INR 500.00']);
+  expect(e.get('cashflow-summary')!.textContent).not.toContain('Investment withdrawal');
   expect(e.get('cashflow-summary')!.textContent).toContain('Net bank cashflowINR 2,272.25');
   input(e,'transaction-type','cashflow');input(e,'page-size','100');
   expect(e.get('transactions')!.children).toHaveLength(44);
   const withdrawals=e.get('transactions')!.children.filter(r=>r.children[1].textContent.includes('FD withdrawal'));
   expect(withdrawals).toHaveLength(11);
+  expect(withdrawals.every(row=>row.children[2].textContent==='Investment')).toBe(true);
   expect(e.get('transactions')!.textContent).toContain('Salary');
   expect(e.get('transactions')!.textContent).toContain('Posted interest');
+  const interest=e.get('transactions')!.children.find(row=>row.children[1].textContent==='Posted interest')!;
+  expect(interest.children[2].textContent).toBe('Interest');
   expect(e.get('transactions')!.textContent).toContain('Card repayment');
   expect(values(e.get('metrics')!)).toEqual(['INR 3,101.25','INR 829.00','INR 2,272.25','INR 0.00']);
   withdrawals[0].children[6].children[0].listeners.click();
   expect(e.get('detail-fields')!.textContent).toContain('Investment principal');
+  expect(e.get('detail-fields')!.textContent).toContain('Original categoryInvestment withdrawal');
   expect(e.get('detail-fields')!.textContent).toContain('observed-ref-');
   expect(e.get('detail-fields')!.textContent).toContain('Section coverage complete');
   expect(e.get('detail-fields')!.textContent).toContain('Balance snapshot only');
@@ -907,7 +954,7 @@ test('bank cashflow excludes card entries and blocked duplicates while retaining
   expect(audit).toContain('1 · Transfers and repayments');
   expect(audit).toContain('1 · Investments');
   expect(audit).toContain('1 · Duplicates');
-  expect(audit).toContain('1 · Alerts matched to a statement');
+  expect(audit).not.toContain('Alerts matched to a statement');
   expect(audit).toContain('1 · Outside your dates');
   input(e,'transaction-type','cashflow');
   expect(e.get('transactions')!.children).toHaveLength(4);
@@ -915,6 +962,19 @@ test('bank cashflow excludes card entries and blocked duplicates while retaining
   expect(e.get('transactions')!.textContent).not.toContain('Invalid');
   input(e,'transaction-type','spending');
   expect(values(e.get('metrics')!)[0]).toBe('INR 90.00');
+});
+
+test('investment directions use amount signs and provisional net outflow stays in Out',()=>{
+ const e=neutralRender([
+  {account_type:'bank_account',category:'Investment',amount_minor:-1000,kind:'credit',status:'provisional',accounting_treatment:'investment',excluded_from_spending:true,excluded_from_income:true},
+  {account_type:'bank_account',category:'Investment withdrawal',amount_minor:4000,kind:'debit',status:'provisional',accounting_treatment:'investment_withdrawal',excluded_from_spending:true,excluded_from_income:true}
+ ]);
+ const rows=e.get('cashflow-summary')!.children;
+ expect(rows.find(row=>row.children[0].textContent==='Provisional Investment')!.children.map(cell=>cell.textContent))
+  .toEqual(['Provisional Investment','INR 10.00','INR 40.00']);
+ expect(rows.at(-1)!.children.map(cell=>cell.textContent)).toEqual(['Provisional Net bank cashflow','—','INR 30.00']);
+ expect(e.get('hero-in-total')!.textContent).toBe('INR 0.00');
+ expect(e.get('hero-total')!.textContent).toBe('INR 0.00');
 });
 
 

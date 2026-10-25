@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "bun run build:report && bun run build:plugin",
+    "build": "bun run build:report && bun run build:setup && bun run build:plugin",
     "build:report": "bun run scripts/build-report.ts",
     "check:report": "bun run scripts/build-report.ts --check",
+    "build:setup": "bun run scripts/build-setup.ts",
+    "check:setup": "bun run scripts/build-setup.ts --check",
     "build:plugin": "bun run scripts/package-plugin.ts",
     "test": "bun run scripts/test-python.ts",
     "test:ui": "bun test tests/report.test.ts tests/report-design.test.ts tests/report-contrast.test.ts tests/report-spacing.test.ts"

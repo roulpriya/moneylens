@@ -1,4 +1,4 @@
 interface:
   display_name: "Update MoneyLens"
-  short_description: "Categorize spending, reconcile statements, and update reports"
-  default_prompt: "Use $automation to update my existing MoneyLens report from authorized financial emails, categorize new transactions using saved decisions first, reconcile alerts with statements, and show spending, incoming money, transfers, and items needing review."
+  short_description: "Refresh your report with new transactions and statements"
+  default_prompt: "Use $automation to update my MoneyLens report from my authorized financial emails. Use saved categories first, match alerts with statements, and show spending, money in, transfers and anything that needs review."
