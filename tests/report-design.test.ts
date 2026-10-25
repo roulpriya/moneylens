@@ -24,7 +24,7 @@ test('unsupported settings reset safely and presets never share mutable colour a
  expect(normalizeDesign({version:1,theme:'midnight'}).colors.chart[0]).toBe('#aac798');
 });
 
-test('existing Sage settings survive upgrade, including colours and section order',()=>{
+test('supported themes retain colours and section order',()=>{
  const d=normalizeDesign({version:1,theme:'sage',colors:{accent:'#123456'},order:['expenses','actuals','categories'],components:{actuals:'#abc123'}});
  expect(d.theme).toBe('sage');expect(d.colors.background).toBe('#f4f6f1');expect(d.colors.accent).toBe('#123456');
  expect(d.order.slice(0,3)).toEqual(['expenses','actuals','categories']);expect(d.order).toContain('daily');expect(d.components.actuals).toBe('#abc123');
@@ -32,4 +32,20 @@ test('existing Sage settings survive upgrade, including colours and section orde
 test('malformed preset names cannot access inherited object properties',()=>{
  expect(normalizeDesign({version:1,theme:'__proto__'}).theme).toBe('paper');
  expect(normalizeDesign({version:1,theme:'constructor'}).theme).toBe('paper');
+});
+
+
+test('unknown layout components are rejected without losing valid preferences',()=>{
+ const d=normalizeDesign({version:1,order:['highlights','transactions','actuals'],components:{highlights:'#abcdef',transactions:'#123456'}});
+ expect(d.order).not.toContain('highlights');
+ expect(d.components).toEqual({transactions:'#123456'});
+ expect(d.order.slice(0,2)).toEqual(['transactions','actuals']);
+});
+
+
+test('unknown component colours do not alter valid appearance settings',()=>{
+ const d=normalizeDesign({version:1,theme:'sage',order:['coverage','transactions','diagnostics','actuals'],components:{coverage:'#abcdef',diagnostics:'#fedcba',transactions:'#123456'}});
+ expect(d.theme).toBe('sage');expect(d.order.slice(0,2)).toEqual(['transactions','actuals']);
+ expect(d.order).not.toContain('coverage');expect(d.order).not.toContain('diagnostics');
+ expect(d.components).toEqual({transactions:'#123456'});
 });

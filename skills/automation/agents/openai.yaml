@@ -1,0 +1,4 @@
+interface:
+  display_name: "Automation"
+  short_description: "Card and bank statements with own transfers excluded"
+  default_prompt: "Use $automation to fetch new email card/bank-account statements and alerts, exclude confirmed own-account transfers, and update the data in my existing report."

@@ -1,0 +1,72 @@
+# Email discovery and secure extraction
+
+In command examples, `<moneylens>` means `<python> <automation-skill>/scripts/moneylens.py`, using the installed Python 3.10+ and the absolute directory of the automation skill (the sibling `automation` directory when reading setup). Quote paths for the current shell; keep each command argument as a separate argument. `<pdf-extract>` means `<python> <automation-skill>/scripts/pdf_extract.py`, the separate PDF tool.
+
+The agent uses connected email MCP tools directly, discovers their names, verifies account access, and handles searches, pagination, message reads, attachment retrieval, and collection failures. It passes retrieved local files or normalized payloads to scripts for document processing and accounting. Scripts do not pull email, call MCP, acquire workflow leases, or manage scan runs, cursors, retries, or schedules. If no email MCP provider is connected, stop and direct the user to Plugins to install/connect one. Do not provision OAuth, extract browser credentials, or substitute another access route. Scheduling belongs to the setup skill's scheduling handoff.
+
+## Search and attachments
+
+Before any content search/read/attachment pull, resolve the available verified email addresses. Reuse an explicit user-selected mailbox scope for this pull or its authorized recurring refreshes. If that scope is missing or ambiguous and multiple accounts are available, ask which to use and wait. Configured accounts alone do not authorize an expanded selection. Before collecting from each selected mailbox say “Pulling information from <email address>.” Do not touch unselected accounts' content or source inventory. Profile-only checks may establish the choices before asking.
+
+The agent computes search dates in the user's timezone and supplies them to MCP. During setup, discover accounts only within rolling 30-day discovery bounds, then explicitly ask which additional accounts may be missing. After confirming the inventory, backfill those accounts from the first day of the previous calendar month through today (for example, 1 September–20 October 2026). These are separate search windows. For later collections, the agent overlaps the last fully completed collection by three days and revisits unresolved source IDs from the private setup/source inventory. Without reliable prior dates, repeat the backfill window and rely on ledger source identity for idempotent processing. Use a receipt-date buffer when needed and report the actual analysis dates. Express date, sender, phrase, and attachment filters using the connected provider's documented syntax. Do not assume another provider's query language, authentication fields, or attachment response shape.
+
+Refine using actual sender/subject terms, including e-statement/account statement where relevant. Verify content; keep bank-account payment notices in scope, and separately search bank-account statements for all confirmed savings/current accounts; their posted movements are in scope, including every payment method. Do not follow email sign-in, payment, or download links automatically. Report link-only statements as unavailable through attachment tools.
+
+Search bank statements separately from card statements, with actual bank sender/subject refinements and terms such as bank statement, account statement, savings/current/checking account statement, consolidated account statement, and e-statement. Adapt vocabulary to the user's language and institutions.
+
+Do not require attachments for the entire bank search: some emails contain actual statement tables. Read those tables with account/cycle, date, description/reference, debit/credit, and balance evidence. Retrieve PDFs using the same supported attachment/raw-MIME route and selected credential backend as card statements. Parse every page, including all movements, fees, repayments, credits, and confirmed self-transfers. Cover the same discovery/backfill windows and all selected mailboxes. Summaries/notifications without transaction tables are not full statements. Unsupported formats or scanned documents become queued extraction issues; do not invent rows or credentials. Do not follow external statement-download links automatically.
+
+For daily transaction alerts, search separately without requiring attachments, using discovered issuer senders plus terms such as transaction, spent, debited, credited, purchase, and successful. Inspect actual content: a transaction alert is evidence of a movement, while an OTP, declined attempt, balance reminder, or authorization hold is not a completed spending row. Search both sources and read every result page. Failed/reversed attempts are not invented refunds. Capture the exact bank transaction reference when available and the card's confirmed masked identity. A message containing multiple distinct successful movements may yield multiple one-row alert payloads, each with a unique source row reference; do not mark that source processed until all its movements have dispositions.
+
+- Consume search pages and deduplicate message IDs. Disclose partial coverage/tool failures.
+- Read the parent message. Use its exact full attachment ID; when absent/truncated, use the exact filename if the connector supports it. Never invent IDs.
+- Provider-returned file URIs may not be local files. Use only a supported retrieval mechanism; never invent an endpoint or map a URI to a guessed path. Read any supported full-content reference when inline extraction is truncated. If attachment extraction fails, use the provider's documented raw-message route when available, decode its MIME, and extract the observed PDF part. Only report an attachment gap after available supported routes also fail. Do not assume all connectors expose the same fields or message formats.
+- Obtain original bytes for local unlocking only through an authorized connector-returned route. Hash original PDF bytes with SHA-256; never hash extracted text as a substitute. If original bytes/body are unavailable, omit `sha256`, retain all occurrences for review and show Completeness not verified. Equal semantic rows alone do not prove duplicate identity. The maintained PDF helper returns the original-byte digest and observed page count; retain those observations in the manifest before deleting temporary extraction files.
+
+## Interpreting source content
+
+The agent reads each source and supplies the confirmed account key, transaction date, decimal amount, currency, movement kind, category, payment channel, and observed references. There is no sender allowlist, institution catalog, or compiled email-layout parser. A source mentioning a payment system or loan marker does not by itself establish the movement type or channel; interpret its actual instructions and transaction evidence. Unsupported/ambiguous evidence stays in the agent's private review inventory rather than being guessed into a ledger row.
+
+For a readable label or source-specific explanation, supply `display_description` and/or `display_note` in transaction metadata. These are explicit presentation values, independent of the institution/provider. The original description, amounts, dates, and source IDs remain unchanged. Sender authentication and mailbox access are established through MCP by the agent, never inferred by processing scripts from a visible From name.
+
+## Python PDF and credential helper
+
+Use the installed Python 3.10+ command as `<python>`, with `scripts/requirements.txt` installed during setup. Quote paths for the current shell or use an argument-array process API:
+
+```sh
+<pdf-extract> --data-dir <data-dir> --input <temporary.pdf> --output <new-extraction.json> --account <opaque-scope>
+```
+
+The helper uses pypdf/cryptography and a private local credential store. It requires no system credential APIs, platform-specific framework, compilation or password-entry dialog. Derived passwords live under `<data-dir>/credentials` with owner-only permissions; only nonsecret configuration belongs in SQLite. Add `--data-dir <dir>` to every extraction/status call. The helper never prints saved or derived values. It saves a candidate only after that candidate unlocks the PDF. Daily extraction uses `--no-prompt` and reuses the saved derived result. Missing or invalid results remain queued for recipe-based setup; daily runs never install packages.
+
+`--data-dir <dir> --credential-status --account <scope>` reports existence without returning a value. Verify readiness with a real unlock and successful unattended extraction. `--probe --input <PDF>` inspects encryption without reading credentials. Unprotected PDFs do not read the credential store. Output JSON files are new private files; existing files are never overwritten.
+
+Use the exact confirmed opaque credential scope; distinct accounts may share a scope when the same password-protected statement covers them and each account is confirmed against that document. Issuer/ending alone cannot identify a scope. Shared-account credentials across mailboxes require confirmed identity. Never try every saved password. There is no credential-scope copying command.
+
+The extraction schema remains `pages: [{page: 1, text: "..."}], page_count, encrypted`, with a 20 MiB / 100-page limit. Empty text may mean a scanned page. Apply a process timeout. Remove your temporary PDFs, extraction JSON, and staging input files in `finally`; do not retain raw text or passwords in the ledger.
+
+### Supply document-supported passwords through stdin
+
+The agent reads the source's actual unlocking instructions and applies them to verified identity inputs transiently. Ask only for required missing inputs. There is no compiled recipe catalog, required identifier length, or guessed issuer convention in the PDF script.
+
+Pass a JSON object `{"passwords":["<candidate>"]}` through process stdin with `--passwords-from-stdin`. Supply at most three candidates supported by the actual document instructions. The script tests literal supplied values, stores only one that unlocks the PDF, and never echoes them. `--verify-passwords-only` tests without storage. Reopen with `--no-prompt` to prove exact-scope reuse.
+
+Keep candidates and identity inputs out of chat output, argv, environment, temporary input files, logs, general memory, and source inventories. Do not embed values in a shell command or here-document; use an in-process stdin/pipe mechanism that does not expose them in tool logs. If a secret-safe input path is unavailable, leave credential repair unresolved rather than exposing a value. Only the protected credential store persists a verified password.
+
+## Payment notifications
+
+Search successful debits and credits using observed institutions, language, payment systems, and actual reference vocabulary. Read the source's explicit account evidence; payment-address or merchant-name fragments do not establish account identity. Preserve only masked account metadata and confirmed opaque keys. A payment system may operate across different account types; never infer the account from the channel alone. Generic receipts are not automatically refunds, salary, or self-transfers.
+
+The agent supplies explicit currency, fractional precision, movement kind, description, amount, date, category, and confirmed account through `<moneylens> add`, with source IDs in metadata. Optional `channel` is an opaque evidenced label, not a fixed list; missing values stay unknown. Sender authentication must come from MCP evidence. This skill reads email and does not imply access to messages held only in other apps or devices.
+
+## Bank account ownership and transfers
+
+Resolve bank statements to the confirmed opaque bank-account key, including product/account-type distinctions for identical endings. A self-transfer needs evidence that the counterparty is another confirmed own account. An exact unique shared bank reference with equal/opposite signed movements across two owned bank accounts can support automatic exclusion; amount/date similarity alone cannot. Preserve both bank statement rows and any alert provenance, all original values, and balance checks. Use `debit`/`credit` for general outgoing/incoming movements, plus an optional evidenced `channel` label. A transfer label, incoming credit, or matching owner name alone is not proof of ownership.
+
+For valid PDFs that hit pypdf’s decompression limit, the maintained helper uses an installed `pdftotext` fallback without weakening that limit. It creates a private temporary unlocked copy, never passes passwords as process arguments, verifies the full page count, and deletes the copy/text in `finally`. Provision Poppler during setup when needed; daily runs do not install packages. Missing fallback tools or incomplete output remain queued extraction issues.
+
+## Complete document extraction
+
+Apply the provider-neutral source completeness contract in [ledger contract](ledger-contract.md) to the entire retrieved document. Independently inventory all pages, account/currency sections, table rows and printed counts/totals/balances before classifying rows. Preserve duplicate occurrences through source links, not deletion. Unreadable or unnormalizable rows remain visible review mappings; partial/unread pages, incomplete sections and missing independent proof remain unverified. A mailbox search can finish with durably queued failures while statement completeness remains unverified. Do not filter source rows by payment system, spending treatment, or report dates.
+
+The agent interprets unfamiliar merchant notation using the actual document/email instructions and can supply a display label/note in metadata; accounting does not apply institutional conventions. Once a resolved-account statement is retrieved, exclude all notification-derived financial entries for its account/currency period; preserve statement gaps rather than filling them with notifications.

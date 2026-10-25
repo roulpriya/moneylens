@@ -1,11 +1,10 @@
 // Appearance preferences only: no transaction data, account IDs, or credentials.
-export const DESIGN_KEY = 'moneylens.report.design.v1';
+export const DESIGN_KEY = 'moneylens.report.appearance.v1';
 export const COMPONENTS = [
   ['actuals','actuals-panel','Monthly actuals'], ['summary','summary-panel','Summary'], ['categories','spending-breakdown','Category chart'], ['daily','daily-panel','Daily spend'], ['transactions','transactions-panel','Transactions'],
-  ['highlights','top-categories-panel','Top categories'], ['expenses','expenses-panel','Expenses'], ['review','review-panel','Source review'],
+  ['expenses','expenses-panel','Expenses'], ['review','review-panel','Source review'],
   ['monthly','monthly-panel','Monthly totals'],
-  ['overview','overview','Overall overview'], ['rules','personal-rules','Category rules'],
-  ['coverage','coverage-panel','Statement coverage'], ['diagnostics','sync-issues','Diagnostics']
+  ['overview','overview','Overview'], ['merchants','merchant-categories','Merchant categories']
 ];
 const PRESETS = {
   paper: {background:'#f4f5f7',cards:'#ffffff',text:'#111418',accent:'#2f4be0',header:'#ffffff',highlights:'#eef0f3',chart:['#1e2a78','#5264f2','#ed8936','#2b9d83','#a58ae8','#e9b930']},

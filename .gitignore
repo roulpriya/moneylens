@@ -14,3 +14,7 @@ cache/
 node_modules/
 dist/
 *.egg-info/
+
+# Private derived PDF credentials belong outside the skill package.
+credentials/
+*.secret

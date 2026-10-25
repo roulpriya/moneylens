@@ -17,5 +17,5 @@ if (html.split(opening).length !== 2 || html.split(closing).length !== 2) throw 
 if (/<(?:script|link|img)\b[^>]*(?:src|href)\s*=/i.test(html)) throw new Error('Report must be self-contained');
 const data = JSON.parse(html.split(opening)[1].split(closing)[0]);
 if (data.rows.length || data.statements.length || Object.keys(data.sync).length) throw new Error('Build input must contain no personal data');
-await Bun.write(resolve(root, 'skills/moneylens-automation/assets/report-template.html'), html);
+await Bun.write(resolve(root, 'skills/automation/assets/report-template.html'), html);
 console.log('Built a single offline HTML template with inline JavaScript and CSS.');

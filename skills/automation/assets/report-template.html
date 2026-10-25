@@ -1,0 +1,2401 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; connect-src 'none'">
+<meta name="moneylens-template-version" content="4"><meta name="moneylens-design-version" content="2">
+<title>MoneyLens · Spending report</title>
+<style>
+/* src/report.css */
+:root {
+  --buncss-light: initial;
+  --buncss-dark: ;
+  color-scheme: light;
+  --bg: #f4f5f7;
+  --panel: #fff;
+  --panel-2: #f4f5f7;
+  --text: #111418;
+  --text-2: #3b424c;
+  --muted: #5b6470;
+  --line: #e3e6eb;
+  --line-strong: #d5d9e0;
+  --accent: #2f4be0;
+  --accent-ink: #fff;
+  --accent-soft: #eef0f3;
+  --header: #fff;
+  --header-text: #111418;
+  --credit: #11694f;
+  --hover: #eef0f3;
+  --stripe: #fff;
+  --bar-track: #eef0f3;
+  --chart-1: #1e2a78;
+  --chart-2: #5264f2;
+  --chart-3: #ed8936;
+  --chart-4: #2b9d83;
+  --chart-5: #a58ae8;
+  --chart-6: #e9b930;
+  --out: #b25a12;
+  --neg: #b3261e;
+  color: var(--text);
+  background: var(--bg);
+  font-variant-numeric: tabular-nums;
+  font: 14px / 1.5 -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, Roboto, Noto Sans, Ubuntu, Cantarell, Helvetica Neue, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  margin: 0;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+button, input, select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
+  border-radius: 10px;
+  min-height: 40px;
+  padding: 8px 14px;
+}
+
+button:hover {
+  background: var(--hover);
+}
+
+button:disabled {
+  opacity: .4;
+  cursor: default;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+h1, h2, h3, p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 20px;
+}
+
+h2 {
+  letter-spacing: -.2px;
+  font-size: 18px;
+  font-weight: 650;
+}
+
+h3 {
+  font-size: 17px;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.sr-only {
+  position: absolute;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+}
+
+.topbar {
+  display: flex;
+  background: var(--header);
+  color: var(--header-text);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+  align-items:  center;
+  gap: 28px;
+  min-height: 72px;
+  padding: 12px max(24px, 50vw - 576px);
+}
+
+.brand {
+  display: flex;
+  letter-spacing: -.6px;
+  white-space: nowrap;
+  align-items:  center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 750;
+}
+
+.brand-mark {
+  width: 28px;
+  height: 28px;
+}
+
+.views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.views button {
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 550;
+}
+
+.views button[aria-pressed="true"], .views button:hover {
+  background: color-mix(in srgb, var(--header-text) 7%, var(--header));
+}
+
+#edit-report {
+  color: inherit;
+  border-color: color-mix(in srgb, var(--header-text) 20%, var(--header));
+  background: none;
+  margin-left: auto;
+  font-size: 12px;
+}
+
+.review-count {
+  display: inline-block;
+  background: color-mix(in srgb, var(--header-text) 7%, var(--header));
+  border-radius: 5px;
+  margin-left: 4px;
+  padding: 1px 5px;
+  font-size: 10px;
+}
+
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 30px 24px 64px;
+}
+
+.report-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items:  center;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.report-heading h1 {
+  color: var(--muted);
+  font-size: 17px;
+  font-weight: 550;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: 2fr repeat(3, minmax(0, 1fr));
+  align-items:  end;
+  gap: 14px;
+  margin-bottom: 4px;
+}
+
+label {
+  display: flex;
+  color: var(--muted);
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+input, select {
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 10px;
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  min-height: 42px;
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+input::placeholder {
+  color: var(--muted);
+}
+
+.more-filters {
+  margin: 6px 0;
+}
+
+.more-filters > summary {
+  color: var(--muted);
+  padding: 5px 0;
+  font-size: 12px;
+}
+
+.filters label {
+  align-self: stretch;
+}
+
+.filters input, .filters select {
+  display: block;
+  height: 42px;
+  min-height: 42px;
+}
+
+.filters select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 16px), calc(100% - 12px);
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+  padding-right: 32px;
+}
+
+.filters.secondary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 10px;
+}
+
+summary {
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 550;
+}
+
+summary::marker {
+  color: var(--muted);
+}
+
+.coverage-note {
+  max-width: 110ch;
+  margin: 14px 0 24px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.report-components {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 24px;
+}
+
+.component {
+  background: var(--surface, var(--panel));
+  color: var(--text);
+  min-width: 0;
+}
+
+.full-width {
+  grid-column: 1 / -1;
+}
+
+.panel {
+  border: 1px solid var(--line);
+  background: var(--surface, var(--panel));
+  border-radius: 18px;
+  padding: 24px;
+}
+
+.section-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.panel > p.muted {
+  margin-top: 4px;
+}
+
+.actuals-panel {
+  grid-column: 1 / -1;
+}
+
+.actuals-hero {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items:  center;
+  gap: 28px;
+  margin: 4px 0 12px;
+}
+
+.hero-spend {
+  flex: 330px;
+}
+
+.eyebrow {
+  color: var(--muted);
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.hero-total {
+  letter-spacing: -2.5px;
+  overflow-wrap: anywhere;
+  font-size: clamp(40px, 5.2vw, 64px);
+  font-weight: 750;
+  line-height: 1.1;
+}
+
+.hero-spend > p:not(.eyebrow) {
+  margin: 12px 0 8px;
+  font-size: 15px;
+}
+
+.provisional-note {
+  display: inline-block;
+  background: var(--accent-soft);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 550;
+}
+
+.hero-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  flex: 1.5 510px;
+  gap: 12px;
+}
+
+.hero-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  display: flex;
+  color: var(--global-text);
+  border-radius: 14px;
+  flex-direction: column;
+  gap: 5px;
+  padding: 15px 18px;
+}
+
+.hero-card .label {
+  color: var(--global-muted);
+  font-size: 12px;
+}
+
+.hero-card .value {
+  letter-spacing: -.5px;
+  overflow-wrap: anywhere;
+  font-size: 21px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.hero-card .muted {
+  color: var(--global-muted);
+  font-size: 11px;
+}
+
+.actuals-reconciliation {
+  margin-top: 18px;
+}
+
+.actuals-reconciliation > summary {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.actuals-reconciliation table {
+  max-width: 560px;
+  margin-top: 12px;
+}
+
+.actuals-reconciliation #actuals-note {
+  margin-top: 10px;
+}
+
+.actuals-reconciliation th {
+  position: static;
+}
+
+.actuals-reconciliation tr:nth-child(5) {
+  font-weight: 700;
+}
+
+.category-panel, .daily-panel {
+  grid-column: span 6;
+}
+
+.category-composition {
+  display: flex;
+  flex-wrap: wrap;
+  align-items:  center;
+  gap: 18px;
+  margin-top: 20px;
+}
+
+.category-chart {
+  display: grid;
+  background: var(--bar-track);
+  border-radius: 50%;
+  flex: none;
+  place-items:  center;
+  width: 190px;
+  height: 190px;
+  margin: 8px auto;
+}
+
+.donut-center {
+  background: var(--surface, var(--panel));
+  display: flex;
+  text-align: center;
+  border-radius: 50%;
+  flex-direction: column;
+  justify-content: center;
+  align-items:  center;
+  gap: 5px;
+  width: 135px;
+  height: 135px;
+  padding: 9px;
+}
+
+.donut-center strong {
+  letter-spacing: -.6px;
+  overflow-wrap: anywhere;
+  font-size: 19px;
+  line-height: 1.2;
+}
+
+.donut-center span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.category-legend {
+  flex: 235px;
+  min-width: 0;
+}
+
+.category-choice {
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto 40px;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 9px;
+  align-items:  center;
+  gap: 9px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 4px;
+  font-size: 12px;
+}
+
+.category-choice[aria-pressed="true"] {
+  background: var(--hover);
+}
+
+.category-swatch {
+  border-radius: 3px;
+  width: 9px;
+  height: 9px;
+}
+
+.category-name {
+  overflow-wrap: anywhere;
+  font-weight: 550;
+}
+
+.category-amount {
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.pct {
+  color: var(--muted);
+  text-align: right;
+  font-size: 11px;
+}
+
+.daily-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.daily-peak {
+  min-height: 22px;
+  margin-top: 20px;
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.daily-chart {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(transparent 49.5%, var(--line) 50%, transparent 50.5%);
+  align-items:  flex-end;
+  gap: 5px;
+  height: 200px;
+  min-height: 200px;
+  margin-top: 20px;
+}
+
+.daily-bar {
+  background: color-mix(in srgb, var(--accent) 45%, var(--panel));
+  border: 0;
+  border-radius: 4px 4px 1px 1px;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 2px;
+  padding: 0;
+}
+
+.daily-bar.peak, .daily-bar:hover {
+  background: var(--accent);
+}
+
+.daily-bar:focus-visible {
+  background: var(--accent);
+}
+
+.daily-labels {
+  display: flex;
+  justify-content: space-between;
+  margin: 10px 0 18px;
+}
+
+.daily-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--line);
+  gap: 14px;
+  margin-top: auto;
+  padding-top: 15px;
+}
+
+.daily-facts > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.daily-facts strong {
+  font-size: 15px;
+}
+
+.daily-facts .muted {
+  font-size: 11px;
+}
+
+#daily-note {
+  margin-top: 13px;
+  font-size: 10px;
+}
+
+#transactions-panel {
+  grid-column: 1 / -1;
+}
+
+.transaction-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items:  center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+#category-selection {
+  display: flex;
+  color: var(--muted);
+  align-items:  center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.category-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 0 0 16px;
+}
+
+.category-chips button {
+  border-radius: 999px;
+  min-height: 32px;
+  padding: 5px 11px;
+  font-size: 11px;
+}
+
+.category-chips button[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--hover);
+}
+
+.scroll {
+  overflow: auto;
+  scrollbar-width: thin;
+  max-width: 100%;
+}
+
+table {
+  border-collapse: collapse;
+  text-align: left;
+  white-space: nowrap;
+  width: 100%;
+  font-size: 12px;
+}
+
+th, td {
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+  padding: 12px 10px;
+}
+
+th {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  background: var(--surface, var(--panel));
+  position: sticky;
+  z-index: 1;
+  font-size: 10px;
+  font-weight: 600;
+  top: 0;
+}
+
+th button {
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  background: none;
+  border: 0;
+  min-height: 24px;
+  padding: 0;
+}
+
+th button:hover {
+  color: var(--accent);
+  background: none;
+}
+
+th[aria-sort="ascending"] button:after {
+  content: " ↑";
+}
+
+th[aria-sort="descending"] button:after {
+  content: " ↓";
+}
+
+td.merchant {
+  white-space: normal;
+  min-width: 160px;
+  max-width: 270px;
+  font-weight: 550;
+}
+
+td.date, td.kind, td.acct {
+  color: var(--muted);
+}
+
+td.acct {
+  font-size: 11px;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+td.num {
+  font-weight: 600;
+}
+
+td.credit, .pos {
+  color: var(--credit);
+}
+
+.neg {
+  color: var(--neg);
+}
+
+tbody tr:hover {
+  background: var(--hover);
+}
+
+.amount-status {
+  display: inline-flex;
+  vertical-align: middle;
+  border-radius: 50%;
+  justify-content: center;
+  align-items:  center;
+  width: 14px;
+  height: 14px;
+  margin-inline-start: 7px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.amount-status.ok {
+  color: #11694f;
+  background: #e6f4ee;
+}
+
+.amount-status.prov {
+  color: #9a4a0f;
+  background: #fff0e3;
+}
+
+.amount-status.warn {
+  color: #9a2f24;
+  background: #fbe4e1;
+  margin: 0;
+  margin-inline-start: 7px;
+  padding: 0;
+}
+
+.amount-status.dim {
+  color: #526070;
+  background: #eef0f3;
+}
+
+button.link {
+  color: var(--accent);
+  background: none;
+  border: 0;
+  min-height: 30px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+button.link:hover {
+  text-decoration: underline;
+}
+
+.pagination {
+  display: flex;
+  color: var(--muted);
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items:  center;
+  gap: 12px;
+  margin-top: 18px;
+  font-size: 12px;
+}
+
+.pagination label {
+  flex-direction: row;
+  align-items:  center;
+}
+
+.pagination select {
+  width: auto;
+  min-height: 34px;
+  font-size: 12px;
+}
+
+.pagination button {
+  min-height: 34px;
+  padding: 6px 11px;
+  font-size: 12px;
+}
+
+.pagination button + button {
+  margin-left: 6px;
+}
+
+#transaction-detail {
+  background: var(--panel-2);
+  margin-top: 20px;
+}
+
+#close-detail {
+  float: right;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 9px 16px;
+  font-size: 13px;
+}
+
+dt {
+  color: var(--muted);
+}
+
+dd {
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+
+#expenses-panel {
+  grid-column: 1 / -1;
+}
+
+#expenses-panel h2 {
+  margin-bottom: 14px;
+}
+
+.actual-bar {
+  background: var(--chart-1);
+  border-radius: 3px;
+  height: 7px;
+  margin-top: 4px;
+}
+
+.actual-total {
+  border-top: 2px solid var(--line-strong);
+  font-weight: 650;
+}
+
+#actual-expenses td:last-child {
+  width: 35%;
+}
+
+.movement-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.movement-views button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
+.metrics, .ov-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.card, .ov-card {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--global-text);
+  border-radius: 14px;
+  padding: 18px;
+}
+
+.card .label, .ov-card .label {
+  color: var(--global-muted);
+  font-size: 12px;
+}
+
+.card .value, .ov-card .value {
+  overflow-wrap: anywhere;
+  letter-spacing: -.6px;
+  margin: 7px 0;
+  font-size: 25px;
+  font-weight: 650;
+}
+
+.card .muted, .ov-card .muted {
+  color: var(--global-muted);
+  font-size: 11px;
+}
+
+#view-note {
+  margin-bottom: 12px;
+}
+
+.ov-head {
+  margin: 14px 0;
+}
+
+.ov-scroll {
+  margin-top: 20px;
+}
+
+.ov-note {
+  margin-top: 14px;
+}
+
+.mini {
+  background: var(--accent);
+  border-radius: 2px;
+  min-width: 1px;
+  height: 6px;
+  margin: 3px 0;
+}
+
+.mini.out {
+  background: var(--out);
+}
+
+.ov-bars {
+  width: 25%;
+}
+
+.source {
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+  padding: 14px 0;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.source:last-child {
+  border-bottom: 0;
+}
+
+.source strong {
+  font-weight: 600;
+}
+
+.source summary {
+  font-size: 13px;
+}
+
+.warn {
+  color: #9a4a0f;
+  background: #fff0e3;
+  border-radius: 9px;
+  margin: 10px 0;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+details.panel[open] > summary {
+  margin-bottom: 12px;
+}
+
+footer {
+  color: var(--muted);
+  padding: 24px 0 0;
+  font-size: 11px;
+}
+
+.report-editor {
+  background: var(--panel);
+  margin-bottom: 24px;
+}
+
+.editor-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items:  center;
+  gap: 12px;
+}
+
+.editor-heading button {
+  font-size: 12px;
+}
+
+.editor-hint {
+  margin: 8px 0 16px;
+}
+
+.design-fields {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  align-items:  end;
+  gap: 12px;
+}
+
+.design-fields input[type="color"] {
+  cursor: pointer;
+  height: 42px;
+  min-height: 42px;
+  padding: 4px;
+}
+
+.component-colors {
+  margin-top: 16px;
+}
+
+.component-colors > summary {
+  font-size: 12px;
+}
+
+.component-fields {
+  grid-template-columns: 2fr 1fr auto;
+  max-width: 580px;
+  margin: 14px 0;
+}
+
+.chart-color-fields {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  max-width: 580px;
+}
+
+.component-fields button {
+  font-size: 12px;
+}
+
+#design-status {
+  min-height: 18px;
+  margin-top: 14px;
+}
+
+.layout-controls {
+  display: flex;
+  border-bottom: 1px dashed var(--line-strong);
+  color: var(--muted);
+  align-items:  center;
+  gap: 7px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  font-size: 12px;
+}
+
+.layout-controls > span {
+  margin-right: auto;
+}
+
+.layout-controls button {
+  background: var(--surface, var(--panel));
+  min-width: 34px;
+  min-height: 32px;
+  padding: 3px 9px;
+}
+
+.component > summary .layout-controls {
+  display: inline-flex;
+  border: 0;
+  margin: 0 0 0 15px;
+  padding: 0;
+}
+
+.component > summary .layout-controls > span {
+  display: none;
+}
+
+@media (max-width: 1050px) {
+  .topbar {
+    gap: 14px;
+  }
+
+  .hero-metrics {
+    flex-basis: 100%;
+  }
+
+  .category-chart {
+    width: 175px;
+    height: 175px;
+  }
+
+  .donut-center {
+    width: 124px;
+    height: 124px;
+  }
+
+  .donut-center strong {
+    font-size: 17px;
+  }
+
+  .design-fields {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .component-fields {
+    grid-template-columns: 2fr 1fr auto;
+  }
+
+  .chart-color-fields {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    padding: 14px 20px;
+  }
+
+  .views {
+    order: 3;
+    width: 100%;
+  }
+
+  .views button {
+    flex: 1;
+    padding: 8px;
+    font-size: 12px;
+  }
+
+  main {
+    padding: 24px 20px 40px;
+  }
+
+  .filters, .filters.secondary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .category-panel, .daily-panel, #expenses-panel {
+    grid-column: 1 / -1;
+  }
+
+  .category-composition {
+    flex-wrap: nowrap;
+  }
+
+  .metrics, .ov-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hero-total {
+    font-size: 50px;
+  }
+
+  .report-components {
+    gap: 18px;
+  }
+
+  .hero-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .hero-card {
+    padding: 13px;
+  }
+
+  .hero-card .value {
+    font-size: 18px;
+  }
+
+  .category-legend {
+    flex-basis: 240px;
+  }
+
+  .daily-chart {
+    height: 180px;
+    min-height: 180px;
+  }
+}
+
+@media (max-width: 520px) {
+  .topbar {
+    padding: 12px 16px;
+  }
+
+  .brand {
+    font-size: 19px;
+  }
+
+  main {
+    padding: 22px 16px 36px;
+  }
+
+  .report-heading h1 {
+    font-size: 16px;
+  }
+
+  .report-heading > span {
+    font-size: 11px;
+  }
+
+  .filters {
+    gap: 10px;
+  }
+
+  .filters label:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .filters.secondary label:first-child {
+    grid-column: auto;
+  }
+
+  .panel {
+    border-radius: 16px;
+    padding: 18px;
+  }
+
+  .hero-total {
+    letter-spacing: -1.8px;
+    font-size: 44px;
+  }
+
+  .hero-spend {
+    flex-basis: 100%;
+  }
+
+  .hero-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-card {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 12px;
+  }
+
+  .hero-card .muted {
+    grid-column: 1 / -1;
+  }
+
+  .hero-card .value {
+    font-size: 20px;
+  }
+
+  .actuals-hero {
+    gap: 18px;
+  }
+
+  .category-composition {
+    flex-wrap: wrap;
+  }
+
+  .category-chart {
+    width: 200px;
+    height: 200px;
+  }
+
+  .donut-center {
+    width: 145px;
+    height: 145px;
+  }
+
+  .category-legend {
+    flex-basis: 100%;
+  }
+
+  .metrics, .ov-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .design-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .component-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .component-fields > label:first-child, .component-fields > button {
+    grid-column: 1 / -1;
+  }
+
+  .chart-color-fields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .design-fields select {
+    padding: 7px;
+    font-size: 12px;
+  }
+
+  .daily-facts {
+    gap: 8px;
+  }
+
+  .daily-facts .muted {
+    font-size: 10px;
+  }
+
+  .daily-chart {
+    gap: 3px;
+  }
+
+  .pagination label {
+    width: 100%;
+  }
+
+  .pagination span {
+    font-size: 11px;
+  }
+
+  .layout-controls {
+    flex-wrap: wrap;
+  }
+
+  .actuals-reconciliation th, .actuals-reconciliation td {
+    padding: 10px 6px;
+    font-size: 11px;
+  }
+
+  dl {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  dd {
+    margin-bottom: 8px;
+  }
+}
+
+@media (pointer: coarse) {
+  .filters input, .filters select {
+    height: 44px;
+    min-height: 44px;
+  }
+
+  button, .category-choice, .pagination button, .category-chips button, .layout-controls button {
+    min-height: 44px;
+  }
+
+  input, select, .filters input, .filters select {
+    font-size: 16px;
+  }
+
+  .daily-bar {
+    min-height: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+  }
+}
+
+.review-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.review-item {
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+  padding: 18px 0;
+}
+
+.review-item:first-child {
+  padding-top: 0;
+}
+
+.review-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.review-item-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 5px;
+}
+
+.review-item strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.review-amount {
+  font-variant-numeric: tabular-nums;
+  flex: none;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.review-reason {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.review-item .muted {
+  margin-top: 5px;
+}
+
+.review-item > .link {
+  margin-top: 6px;
+  margin-left: -6px;
+}
+
+.review-empty {
+  padding: 8px 0;
+}
+
+#review-summary {
+  margin-bottom: 18px;
+}
+
+@media (max-width: 520px) {
+  .review-item-heading {
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+
+  .review-item-heading strong {
+    flex: 180px;
+  }
+
+  .review-reason {
+    font-size: 13px;
+  }
+}
+
+.review-source-details {
+  margin-top: 10px;
+}
+
+.review-source-details > summary {
+  color: var(--accent);
+  width: -moz-fit-content;
+  width: fit-content;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.review-source-details dl {
+  margin: 12px 0 0;
+  font-size: 12px;
+}
+
+.review-source-details > p {
+  margin-top: 10px;
+}
+
+button.transaction-source {
+  display: block;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  min-height: 30px;
+  margin-top: 3px;
+  padding: 3px 0;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.review-item > button.transaction-source {
+  margin-left: 0;
+}
+
+td.merchant .transaction-source {
+  color: var(--muted);
+}
+</style>
+<header class="topbar"><div class="brand"><svg class="brand-mark" viewBox="0 0 28 28" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="var(--accent)" stroke-width="3"></circle><path d="M18.5 18.5l6 6M8 14l2.6-2.6 2 2 3-3.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>moneylens</div>
+<nav class="views" aria-label="Report views"><button id="tab-report" type="button" aria-pressed="true">Report</button><button id="tab-transactions" type="button" aria-pressed="false">Transactions</button><button id="view-review" type="button" aria-pressed="false">Review <span id="review-count" class="review-count"></span></button></nav>
+<button id="edit-report" type="button" aria-expanded="false" aria-controls="report-editor">Edit report</button></header>
+<main><div class="report-heading"><h1 id="report-title">Spending report</h1><span id="report-period" class="muted"></span></div>
+<section id="report-editor" class="panel report-editor" hidden aria-label="Report appearance"><div class="editor-heading"><h2>Appearance</h2><button id="reset-design" type="button">Reset to default</button></div>
+<div class="design-fields"><label>Theme<select id="design-theme"><option value="paper">Paper</option><option value="sage">Sage</option><option value="midnight">Midnight</option></select></label><label>Background<input id="design-background" type="color"></label><label>Cards<input id="design-cards" type="color"></label><label>Text<input id="design-text" type="color"></label><label>Accent<input id="design-accent" type="color"></label><label>Header<input id="design-header" type="color"></label><label>Accent background<input id="design-highlights" type="color"></label></div>
+<details class="component-colors"><summary>Section & chart colours</summary><div class="design-fields component-fields"><label>Section<select id="design-component"></select></label><label>Background<input id="design-component-color" type="color"></label><button id="component-use-theme" type="button">Use theme</button></div><div class="design-fields chart-color-fields"><label>Slice 1<input id="design-chart-1" type="color"></label><label>Slice 2<input id="design-chart-2" type="color"></label><label>Slice 3<input id="design-chart-3" type="color"></label><label>Slice 4<input id="design-chart-4" type="color"></label><label>Slice 5<input id="design-chart-5" type="color"></label><label>Slice 6<input id="design-chart-6" type="color"></label></div></details><p id="design-status" class="muted" role="status" aria-live="polite"></p></section>
+<section id="primary-filters" class="filters" aria-label="Dashboard filters"><label><span class="sr-only">Search</span><input id="search" type="search" placeholder="Merchant, category or reference"></label><label><span class="sr-only">Month</span><select id="month"><option value="">All months</option></select></label><label><span class="sr-only">Account</span><select id="account"><option value="">All accounts</option></select></label><label><span class="sr-only">Payment type</span><select id="channel"><option value="">All payment types</option></select></label></section>
+<details id="secondary-filters" class="more-filters"><summary>More filters</summary><section class="filters secondary" aria-label="More filters"><label>Currency<select id="currency"></select></label><label>Record state<select id="state"><option value="">All states</option><option value="matched">Reconciled duplicates</option><option value="draft">Staged statements</option><option value="imported">Saved statements</option><option value="posted">Confirmed transactions</option><option value="provisional">Provisional transactions</option><option value="unresolved">Blocked or ambiguous</option></select></label><label>From<input id="from" type="date"></label><label>Through<input id="to" type="date"></label></section></details>
+<p id="coverage-note" class="coverage-note muted" role="status"></p>
+<div id="movement-views" class="movement-views" aria-label="Transaction type" hidden><button id="view-all" type="button" aria-pressed="false">All transactions</button><button id="view-spending" type="button" aria-pressed="true">Spending</button><button id="view-incoming" type="button" aria-pressed="false">Incoming money</button><button id="view-transfers" type="button" aria-pressed="false">Transfers</button></div>
+<div id="report-components" class="report-components">
+<section id="actuals-panel" class="component actuals-panel full-width" data-component="actuals" aria-label="Monthly actuals">
+<div class="actuals-hero"><div class="hero-spend"><p class="eyebrow">Confirmed net spend</p><div id="hero-total" class="hero-total"></div><p id="hero-caption"></p><span id="hero-provisional" class="provisional-note"></span></div><div id="hero-metrics" class="hero-metrics"></div></div>
+<details class="actuals-reconciliation"><summary>Breakdown</summary><table aria-label="Monthly actuals"><tbody id="actuals-summary"></tbody></table><p id="actuals-note" class="muted"></p></details></section>
+<section id="expenses-panel" class="panel component full-width" data-component="expenses"><h2>Expenses by category</h2><div class="scroll"><table aria-label="Expenses by category"><thead><tr><th>Category</th><th class="num">Net spend</th><th>Share of purchases</th></tr></thead><tbody id="actual-expenses"></tbody></table></div></section>
+<section id="summary-panel" class="component full-width" data-component="summary" aria-labelledby="view-title"><h2 id="view-title" class="sr-only">Spending summary</h2><p id="view-note" class="muted"></p><div class="metrics" id="metrics"></div></section>
+<section id="spending-breakdown" class="panel component category-panel" data-component="categories"><div class="section-heading"><h2>Where it went</h2></div><div class="category-composition"><div id="category-chart" class="category-chart" role="img" aria-label="Purchases by category"><div class="donut-center"><strong id="category-total"></strong><span>before refunds</span></div></div><div id="categories" class="category-legend"></div></div></section>
+<section id="daily-panel" class="panel component daily-panel" data-component="daily"><div class="section-heading"><h2>Daily spend</h2><span id="daily-average" class="muted"></span></div><p id="daily-peak" class="daily-peak"></p><div id="daily-chart" class="daily-chart" role="group" aria-label="Daily confirmed purchases"></div><div id="daily-labels" class="daily-labels muted"></div><div id="daily-facts" class="daily-facts"></div><p id="daily-note" class="muted"></p></section>
+<section id="review-panel" class="panel component full-width" data-component="review" hidden><h2 id="review-summary">Source issues</h2><ul id="review-groups" class="review-list" aria-label="Source issues"></ul></section>
+<section id="transactions-panel" class="panel component full-width" data-component="transactions"><div class="transaction-heading"><h2 id="table-title">Transactions</h2><div id="category-selection" hidden><span id="category-selection-label"></span><button id="clear-category" type="button" class="link">Clear filter</button></div></div><div id="category-chips" class="category-chips" aria-label="Filter transactions by category"></div><ul id="review-transactions" class="review-list" aria-label="Transactions to review" hidden></ul><div id="transaction-table" class="scroll"><table aria-label="Transactions"><thead><tr><th id="head-date" aria-sort="descending"><button id="sort-date" type="button">Date</button></th><th id="head-merchant" aria-sort="none"><button id="sort-merchant" type="button">Merchant</button></th><th id="head-category" aria-sort="none"><button id="sort-category" type="button">Category</button></th><th id="head-kind" aria-sort="none"><button id="sort-kind" type="button">Movement</button></th><th id="head-amount_minor" class="num" aria-sort="none"><button id="sort-amount_minor" type="button">Amount</button></th><th id="head-account" aria-sort="none"><button id="sort-account" type="button">Account</button></th><th>Details</th></tr></thead><tbody id="transactions"></tbody></table></div><div class="pagination"><label id="page-size-control">Rows<select id="page-size"><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label><span id="page-info" role="status" aria-live="polite"></span><div><button id="previous-page" type="button">Previous</button><button id="next-page" type="button">Next</button></div></div><section id="transaction-detail" class="panel" hidden aria-labelledby="detail-title"><button id="close-detail" type="button">Close</button><h2 id="detail-title">Transaction details</h2><dl id="detail-fields"></dl></section></section>
+<details id="monthly-panel" class="panel component full-width" data-component="monthly"><summary>Month by month</summary><div class="scroll"><table class="month-table"><thead><tr><th>Month</th><th>Confirmed net</th><th>Provisional net</th></tr></thead><tbody id="months"></tbody></table></div></details>
+<details id="overview" class="panel component overview full-width" data-component="overview"><summary id="overview-title">Overview</summary><div class="ov-head"><p id="ov-scope" class="muted"></p></div><div class="ov-cards" id="ov-cards"></div><div class="scroll ov-scroll"><table class="month-table ov-table"><thead><tr><th>Month</th><th>Money in</th><th>Spent</th><th>Net</th><th class="ov-barhead">In vs spent</th></tr></thead><tbody id="ov-months"></tbody></table></div><p id="ov-note" class="muted ov-note"></p></details>
+<details id="merchant-categories" class="panel component full-width" data-component="merchants" hidden><summary>Cached merchant categories</summary><div id="merchant-list"></div></details>
+</div><footer id="footer"></footer></main>
+<!-- MONEYLENS_DATA_START -->
+<script id="data" type="application/json">{"schema_version":4,"statements":[],"rows":[],"from":"","to":"","generated":null,"sync":{}}</script>
+<!-- MONEYLENS_DATA_END -->
+<script>
+(() => {
+  // src/report-design.js
+  var DESIGN_KEY = "moneylens.report.appearance.v1";
+  var COMPONENTS = [
+    ["actuals", "actuals-panel", "Monthly actuals"],
+    ["summary", "summary-panel", "Summary"],
+    ["categories", "spending-breakdown", "Category chart"],
+    ["daily", "daily-panel", "Daily spend"],
+    ["transactions", "transactions-panel", "Transactions"],
+    ["expenses", "expenses-panel", "Expenses"],
+    ["review", "review-panel", "Source review"],
+    ["monthly", "monthly-panel", "Monthly totals"],
+    ["overview", "overview", "Overview"],
+    ["merchants", "merchant-categories", "Merchant categories"]
+  ];
+  var PRESETS = {
+    paper: { background: "#f4f5f7", cards: "#ffffff", text: "#111418", accent: "#2f4be0", header: "#ffffff", highlights: "#eef0f3", chart: ["#1e2a78", "#5264f2", "#ed8936", "#2b9d83", "#a58ae8", "#e9b930"] },
+    sage: { background: "#f4f6f1", cards: "#ffffff", text: "#233b2d", accent: "#405f44", header: "#10171b", highlights: "#e7eedf", chart: ["#617e58", "#c68257", "#9990b8", "#5c9a9b", "#b89b42", "#a4b2a1"] },
+    midnight: { background: "#17231d", cards: "#213128", text: "#f0f5ed", accent: "#b8d8a6", header: "#10171b", highlights: "#314c32", chart: ["#aac798", "#d7a782", "#b9b1d6", "#86b9ba", "#d1bc79", "#a4b2a1"] }
+  };
+  var fields = ["background", "cards", "text", "accent", "header", "highlights"];
+  var validColor = (value) => typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
+  var fresh = (theme = "paper") => ({ version: 1, theme, colors: { ...PRESETS[theme], chart: [...PRESETS[theme].chart] }, order: COMPONENTS.map((c) => c[0]), components: {} });
+  function normalizeDesign(input) {
+    const base = fresh(Object.hasOwn(PRESETS, input?.theme) ? input.theme : "paper");
+    if (!input || input.version !== 1)
+      return fresh();
+    for (const key of fields)
+      if (validColor(input.colors?.[key]))
+        base.colors[key] = input.colors[key];
+    if (Array.isArray(input.colors?.chart))
+      base.colors.chart = base.colors.chart.map((c, i) => validColor(input.colors.chart[i]) ? input.colors.chart[i] : c);
+    if (Array.isArray(input.order))
+      base.order = [...new Set(input.order.filter((id) => base.order.includes(id)))].concat(base.order.filter((id) => !input.order.includes(id)));
+    for (const [id] of COMPONENTS)
+      if (validColor(input.components?.[id]))
+        base.components[id] = input.components[id];
+    return base;
+  }
+  function foreground(hex) {
+    const rgb = hex.slice(1).match(/../g).map((v) => parseInt(v, 16) / 255).map((v) => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+    return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722 > 0.179 ? "#17231d" : "#f4f6f1";
+  }
+  function initializeReportDesign(doc = document) {
+    const get = (id) => doc.getElementById(id), root = doc.documentElement;
+    let storage = null, editing = false;
+    try {
+      storage = globalThis.localStorage;
+    } catch {}
+    let raw = null;
+    try {
+      const text = storage?.getItem(DESIGN_KEY);
+      if (text && text.length < 16384)
+        raw = JSON.parse(text);
+    } catch {}
+    let design = normalizeDesign(raw);
+    const elements = new Map(COMPONENTS.map(([id, elementId]) => [id, get(elementId)]));
+    const controls = new Map;
+    function message(text) {
+      get("design-status").textContent = text;
+    }
+    function save() {
+      try {
+        if (!storage)
+          throw new Error("Unavailable");
+        storage.setItem(DESIGN_KEY, JSON.stringify(design));
+        message("Saved in this browser.");
+      } catch {
+        message("Browser storage is unavailable. Changes last until reload.");
+      }
+    }
+    function surface(id) {
+      return design.components[id] || (id === "highlights" ? design.colors.highlights : ["summary", "actuals"].includes(id) ? design.colors.background : design.colors.cards);
+    }
+    function syncComponentColor() {
+      get("design-component-color").value = surface(get("design-component").value || "summary");
+    }
+    function refresh() {
+      const visible = design.order.filter((id) => !elements.get(id).hidden);
+      for (const [id, bar] of controls) {
+        bar.hidden = !editing;
+        bar.up.disabled = visible.indexOf(id) <= 0;
+        bar.down.disabled = visible.indexOf(id) < 0 || visible.indexOf(id) === visible.length - 1;
+      }
+    }
+    function apply() {
+      const c = design.colors;
+      for (const [css, key] of [["--bg", "background"], ["--panel", "cards"], ["--text", "text"], ["--accent", "accent"], ["--accent-soft", "highlights"], ["--header", "header"]])
+        root.style.setProperty(css, c[key]);
+      root.style.setProperty("--header-text", foreground(c.header));
+      root.style.setProperty("--accent-ink", foreground(c.accent));
+      root.style.setProperty("--muted", `color-mix(in srgb, ${c.text} 74%, ${c.background})`);
+      root.style.setProperty("--global-text", c.text);
+      root.style.setProperty("--global-muted", `color-mix(in srgb, ${c.text} 74%, ${c.cards})`);
+      root.style.setProperty("--highlight-text", foreground(c.highlights));
+      root.style.setProperty("--text-2", c.text);
+      root.style.setProperty("--panel-2", c.background);
+      root.style.setProperty("--line", `color-mix(in srgb, ${c.text} 17%, ${c.cards})`);
+      root.style.setProperty("--line-strong", `color-mix(in srgb, ${c.text} 30%, ${c.cards})`);
+      root.style.setProperty("--credit", c.accent);
+      root.style.setProperty("--hover", `color-mix(in srgb, ${c.accent} 10%, ${c.cards})`);
+      root.style.setProperty("--stripe", c.cards);
+      root.style.setProperty("--in", c.accent);
+      root.style.setProperty("--bar-track", c.highlights);
+      root.style.colorScheme = design.theme === "midnight" ? "dark" : "light";
+      c.chart.forEach((color, i) => root.style.setProperty("--chart-" + (i + 1), color));
+      for (const [id, element] of elements) {
+        const bg = surface(id), text = design.components[id] || id === "highlights" ? foreground(bg) : c.text;
+        element.style.setProperty("--surface", bg);
+        element.style.setProperty("--text", text);
+        element.style.setProperty("--text-2", text);
+        element.style.setProperty("--muted", `color-mix(in srgb, ${text} 74%, ${bg})`);
+      }
+      design.order.forEach((id) => get("report-components").append(elements.get(id)));
+      get("design-theme").value = design.theme;
+      fields.forEach((key) => get("design-" + key).value = c[key]);
+      c.chart.forEach((color, i) => get("design-chart-" + (i + 1)).value = color);
+      syncComponentColor();
+      refresh();
+    }
+    function move(id, delta, trigger) {
+      const visible = design.order.filter((key) => !elements.get(key).hidden), index = visible.indexOf(id), target = visible[index + delta];
+      if (!target)
+        return;
+      design.order = design.order.filter((key) => key !== id);
+      const targetIndex = design.order.indexOf(target);
+      design.order.splice(targetIndex + (delta > 0 ? 1 : 0), 0, id);
+      apply();
+      save();
+      trigger.focus?.({ preventScroll: true });
+    }
+    for (const [id, , label] of COMPONENTS) {
+      const bar = doc.createElement(elements.get(id).tagName === "DETAILS" ? "span" : "div");
+      bar.className = "layout-controls";
+      bar.hidden = true;
+      const name = doc.createElement("span");
+      name.textContent = label;
+      bar.append(name);
+      for (const [delta, text] of [[-1, "↑"], [1, "↓"]]) {
+        const b = doc.createElement("button");
+        b.type = "button";
+        b.textContent = text;
+        b.setAttribute("aria-label", "Move " + label + " " + (delta < 0 ? "up" : "down"));
+        b.addEventListener("click", () => move(id, delta, b));
+        bar.append(b);
+        bar[delta < 0 ? "up" : "down"] = b;
+      }
+      if (elements.get(id).tagName === "DETAILS")
+        elements.get(id).firstElementChild.append(bar);
+      else
+        elements.get(id).prepend(bar);
+      controls.set(id, bar);
+      const option = doc.createElement("option");
+      option.value = id;
+      option.textContent = label;
+      get("design-component").append(option);
+    }
+    get("edit-report").addEventListener("click", () => {
+      editing = !editing;
+      get("report-editor").hidden = !editing;
+      get("edit-report").setAttribute("aria-expanded", String(editing));
+      get("edit-report").textContent = editing ? "Done" : "Edit report";
+      refresh();
+    });
+    get("design-theme").addEventListener("change", () => {
+      const theme = get("design-theme").value;
+      if (!PRESETS[theme])
+        return;
+      const next = fresh(theme);
+      design = { ...next, order: design.order };
+      apply();
+      save();
+    });
+    fields.forEach((key) => get("design-" + key).addEventListener("input", () => {
+      const color = get("design-" + key).value;
+      if (!validColor(color))
+        return;
+      design.colors[key] = color;
+      apply();
+      save();
+    }));
+    for (let i = 0;i < 6; i++)
+      get("design-chart-" + (i + 1)).addEventListener("input", () => {
+        const color = get("design-chart-" + (i + 1)).value;
+        if (!validColor(color))
+          return;
+        design.colors.chart[i] = color;
+        apply();
+        save();
+      });
+    get("design-component").addEventListener("change", syncComponentColor);
+    get("design-component-color").addEventListener("input", () => {
+      const id = get("design-component").value, color = get("design-component-color").value;
+      if (!elements.has(id) || !validColor(color))
+        return;
+      design.components[id] = color;
+      apply();
+      save();
+    });
+    get("component-use-theme").addEventListener("click", () => {
+      delete design.components[get("design-component").value];
+      apply();
+      save();
+    });
+    get("reset-design").addEventListener("click", () => {
+      design = fresh();
+      apply();
+      try {
+        if (!storage)
+          throw new Error("Unavailable");
+        storage.removeItem(DESIGN_KEY);
+        message("Default design restored.");
+      } catch {
+        message("Defaults restored for this tab. Browser storage is unavailable.");
+      }
+    });
+    apply();
+    return { refresh };
+  }
+
+  // src/report.js
+  var data = JSON.parse(document.getElementById("data").textContent);
+  var $ = (id) => document.getElementById(id);
+  function node(tag, text, cls) {
+    const e = document.createElement(tag);
+    if (text !== undefined)
+      e.textContent = text;
+    if (cls)
+      e.className = cls;
+    return e;
+  }
+  function currencyLabel(code) {
+    return code || "";
+  }
+  function money(amount, exp, code) {
+    if (amount === null || amount === undefined || !Number.isInteger(exp) || exp < 0 || exp > 18 || !code)
+      return "Unresolved";
+    amount = BigInt(amount);
+    const negative = amount < 0n;
+    if (negative)
+      amount = -amount;
+    const scale = 10n ** BigInt(exp), whole = (amount / scale).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return (negative ? "−" : "") + (code + " ") + whole + (exp ? "." + (amount % scale).toString().padStart(exp, "0") : "");
+  }
+  var dateFmt = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  function prettyDate(d) {
+    const t = Date.parse(d + "T00:00:00Z");
+    return isNaN(t) ? d : dateFmt.format(t);
+  }
+  var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function prettyMonth(m) {
+    const [y, mo] = String(m).split("-").map(Number);
+    return y && mo >= 1 && mo <= 12 ? monthNames[mo - 1] + " - " + y : m;
+  }
+  function sum(rows, predicate = () => true) {
+    return rows.reduce((total, r) => total + (predicate(r) ? BigInt(r.amount_minor) : 0n), 0n);
+  }
+  function option(id, value, label) {
+    const e = node("option", label);
+    e.value = value;
+    $(id).append(e);
+  }
+  var spendKinds = new Set(["purchase", "debit", "fee", "interest", "cash_advance", "adjustment_debit", "refund", "adjustment_credit"]);
+  var isTransfer = (r) => r.excluded_from_spending === true;
+  var unverifiedTransferOut = (r) => r.kind === "transfer_out" && !isTransfer(r);
+  var eligible = (r) => !r.blocked && !r.suppressed && ["imported", "posted", "provisional", "draft"].includes(r.status);
+  var confirmed = (r) => ["imported", "posted"].includes(r.status);
+  var spending = (r) => !isTransfer(r) && spendKinds.has(r.kind);
+  function reviewReasons(r) {
+    if (r.suppressed)
+      return [];
+    const reasons = [];
+    if (r.review_reason)
+      reasons.push(r.review_reason);
+    if (r.blocked || ["draft", "needs_review"].includes(r.status)) {
+      const statement = data.statements.find((s) => s.id === r.statement);
+      reasons.push(...statement?.checks?.issues || []);
+    }
+    if (!r.review_reason && r.kind === "unknown")
+      reasons.push("The source row's movement type could not be identified.");
+    if (!r.review_reason && r.amount_minor == null)
+      reasons.push("The source row's amount could not be read.");
+    if (unverifiedTransferOut(r))
+      reasons.push("The receiving account has not been confirmed as yours. Resolve whether this is an own-account transfer or an expense.");
+    if (r.status === "draft")
+      reasons.push("The statement is staged and has not been imported.");
+    if ((r.blocked || r.status === "needs_review") && !reasons.length)
+      reasons.push("Financial validation is unresolved; this row is excluded from totals.");
+    if (spending(r) && r.amount_minor > 0 && r.category === "Other")
+      reasons.push("The merchant has not been assigned a spending category.");
+    return [...new Set(reasons.map((reason) => String(reason).trim()).filter(Boolean))];
+  }
+  var needsReview = (r) => reviewReasons(r).length > 0;
+  function stateLabel(r) {
+    return r.suppressed ? "Reconciled duplicate · Excluded" : r.blocked ? "Needs review · Excluded" : r.status === "needs_review" ? "Needs review · Excluded" : r.status === "draft" ? "Provisional · Staged statement" : r.status === "provisional" ? "Provisional · Transaction" : r.status === "posted" ? "Confirmed · Transaction" : r.status === "imported" ? "Confirmed · Saved statement" : r.status;
+  }
+  function amountDisplay(r, fmt, tag, className) {
+    const full = stateLabel(r), short = full.split(" · ")[0];
+    const tone = r.suppressed ? "dim" : short === "Confirmed" ? "ok" : short === "Provisional" ? "prov" : short === "Needs review" ? "warn" : "dim";
+    const amount = node(tag, undefined, className);
+    const indicator = node("span", { ok: "✓", prov: "◷", warn: "!", dim: "↪" }[tone], "amount-status " + tone);
+    indicator.title = full;
+    indicator.setAttribute("role", "img");
+    indicator.setAttribute("aria-label", full);
+    amount.append(node("span", fmt(r.amount_minor)), indicator);
+    return amount;
+  }
+  [...new Set(data.rows.map((row) => row.channel).filter((value) => typeof value === "string" && value.trim()))].sort().forEach((value) => option("channel", value, value));
+  var currencies = [...new Set([...data.rows, ...data.statements].map((r) => r.currency).filter(Boolean))].sort();
+  currencies.forEach((c) => option("currency", c, currencyLabel(c)));
+  if (!currencies.length)
+    option("currency", "", "No transactions");
+  [...new Set(data.rows.map((r) => r.date.slice(0, 7)))].sort().reverse().forEach((m) => option("month", m, prettyMonth(m)));
+  var accounts = new Map(data.rows.map((r) => [r.account_key, r.account]));
+  accounts.forEach((label, key) => option("account", key, label));
+  $("from").value = data.from;
+  $("to").value = data.to;
+  var views = ["all", "spending", "incoming", "transfers", "review"];
+  var sortKeys = ["date", "merchant", "category", "kind", "amount_minor", "account"];
+  var view = "spending";
+  var screen = "report";
+  var categorySelection = null;
+  var reportDesign;
+  var sortKey = "date";
+  var direction = -1;
+  var page = 0;
+  var detailTrigger;
+  var sync = data.sync || {};
+  var reviewItems = data.review_items || [];
+  var sourceReviewItems = reviewItems.filter((r) => r.group !== "Categorization");
+  function sourceDetails(sources, fields = []) {
+    const details = node("details", undefined, "review-source-details");
+    details.append(node("summary", "View source"));
+    const pairs = [...fields];
+    sources.forEach((source) => {
+      if (source.filename)
+        pairs.push(["File", source.filename]);
+      if (source.mailbox || source.mailbox_id)
+        pairs.push(["Mailbox", source.mailbox || source.mailbox_id]);
+      if (source.message_id)
+        pairs.push(["Message", source.message_id]);
+      if (source.attachment_id)
+        pairs.push(["Attachment", source.attachment_id]);
+    });
+    const dl = node("dl");
+    pairs.forEach(([label, value]) => dl.append(node("dt", label), node("dd", String(value))));
+    if (pairs.length)
+      details.append(dl);
+    else
+      details.append(node("p", "Source identifiers were not recorded for this item.", "muted"));
+    return details;
+  }
+  function transactionSources(r) {
+    const statement = data.statements.find((s) => s.id === r.statement);
+    const sources = [...statement?.sources || [], statement?.source, r.source];
+    const seen = new Set;
+    return sources.filter((source) => {
+      if (!source)
+        return false;
+      const key = JSON.stringify(source);
+      if (seen.has(key))
+        return false;
+      seen.add(key);
+      return true;
+    });
+  }
+  function sourceName(source) {
+    return source?.filename && source.filename !== "email-body" ? source.filename : source ? "Email message" : "Source not recorded";
+  }
+  function transactionSourceLink(r) {
+    const sources = transactionSources(r), first = sources[0];
+    const location = [r.page != null ? "p. " + r.page : null, r.row != null ? "row " + r.row : null].filter(Boolean).join(", ");
+    const caption = [sourceName(first), sources.length > 1 ? "+" + (sources.length - 1) + (sources.length === 2 ? " source" : " sources") : null, first && location].filter(Boolean).join(" · ");
+    const button = node("button", caption, "link transaction-source");
+    button.type = "button";
+    button.setAttribute("aria-label", "View source for " + r.merchant + " on " + r.date);
+    button.addEventListener("click", () => showDetail(r, button));
+    return button;
+  }
+  function showDetail(r, trigger) {
+    detailTrigger = trigger;
+    const statement = data.statements.find((s) => s.id === r.statement), sources = transactionSources(r), fmt = (n) => money(n, r.exponent, r.currency);
+    const fields = [["Date", r.date], ["Merchant", r.merchant], ["Category", r.category], ["Movement", r.kind.replaceAll("_", " ")], ["Amount", fmt(r.amount_minor)], ["Account", r.account], ["State", stateLabel(r)], ["Spending treatment", !eligible(r) ? "Excluded while financial checks are unresolved" : isTransfer(r) ? "Own-account transfer · Excluded" : unverifiedTransferOut(r) ? "Outgoing movement · Transfer ownership needs review" : spending(r) ? "Included in spending" : ["payment", "repayment"].includes(r.kind) ? "Repayment · Excluded from spending" : "Incoming money · Excluded from spending"], ["Payment type", r.channel ?? "Not provided"], ["Source record", r.statement || "Unavailable"], ["Source page / row", (r.page ?? "Unavailable") + " / " + (r.row ?? "Unavailable")]];
+    if (r.reference)
+      fields.push(["Reference", r.reference]);
+    if (r.duplicate_of || r.review_reason)
+      fields.push(["Source row mapping", r.duplicate_of ? "Duplicate linked to " + r.duplicate_of.statement + " / row " + r.duplicate_of.index + ": " + r.duplicate_of.evidence : r.review_reason]);
+    if (r.original_merchant && r.original_merchant !== r.merchant)
+      fields.push(["Original descriptor", r.original_merchant]);
+    if (r.metadata?.display_note)
+      fields.push(["Source note", r.metadata.display_note]);
+    if (needsReview(r))
+      fields.push(["Review reasons", reviewReasons(r).join(" · ")]);
+    fields.push(["Source completeness", r.coverage_status || statement?.coverage?.status || statement?.checks?.coverage?.status || "Completeness not verified"]);
+    sources.forEach((source) => {
+      fields.push(["Source", sourceName(source)]);
+      if (source.mailbox || source.mailbox_id)
+        fields.push(["Mailbox", source.mailbox || source.mailbox_id]);
+      if (source.message_id)
+        fields.push(["Message", source.message_id]);
+      if (source.attachment_id)
+        fields.push(["Attachment", source.attachment_id]);
+    });
+    if (!sources.length)
+      fields.push(["Source", "Source identifiers were not recorded for this transaction."]);
+    if (r.transfer_evidence)
+      fields.push(["Transfer evidence", r.transfer_evidence]);
+    if (statement) {
+      fields.push(["Statement period", statement.period]);
+      const coverage = statement.coverage || statement.checks?.coverage;
+      if (!coverage)
+        fields.push(["Coverage evidence", "Source row coverage evidence is missing, so completeness cannot be verified."]);
+      const gaps = [...new Set(coverage?.gaps || [])];
+      if (gaps.length)
+        fields.push(["Coverage gaps", gaps.join(" · ")]);
+      if (coverage?.mapped_counts)
+        fields.push(["Source rows", coverage.source_row_count + " total · " + coverage.mapped_counts.retained + " retained · " + coverage.mapped_counts.duplicate_linked + " duplicate linked · " + coverage.mapped_counts.review + " for review"]);
+      if (statement.financial_review_resolved !== undefined)
+        fields.push(["Financial review", statement.financial_review_resolved ? "Resolved" : "Unresolved"]);
+      const checks = statement.checks || {};
+      if (checks.issues?.length)
+        fields.push(["Validation issues", checks.issues.join(" · ")]);
+      fields.push(["Passed checks", checks.passed_checks?.length ? checks.passed_checks.map((check) => check.replaceAll("_", " ")).join(" · ") : "No independent checks recorded"]);
+      if (checks.unavailable_checks?.length)
+        fields.push(["Unavailable checks", checks.unavailable_checks.map((check) => check.replaceAll("_", " ")).join(" · ")]);
+      if (statement.resolution_notes)
+        fields.push(["Resolution", statement.resolution_notes]);
+    }
+    $("detail-fields").replaceChildren(...fields.flatMap(([label, value]) => [node("dt", label), node("dd", String(value))]));
+    $("transaction-detail").hidden = false;
+    $("close-detail").focus?.();
+    $("transaction-detail").scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+  }
+  function closeDetail() {
+    $("transaction-detail").hidden = true;
+    detailTrigger?.focus?.();
+  }
+  $("close-detail").addEventListener("click", closeDetail);
+  function cards(items) {
+    $("metrics").replaceChildren(...items.map(([label, value, hint]) => {
+      const card = node("div", undefined, "card");
+      card.append(node("div", label, "label"), node("div", value, "value"));
+      if (hint)
+        card.append(node("div", hint, "muted"));
+      return card;
+    }));
+  }
+  function filteredRows() {
+    const code = $("currency").value, month = $("month").value, account = $("account").value, state = $("state").value, query = $("search").value.trim().toLowerCase();
+    return data.rows.filter((r) => (!$("channel").value || r.channel === $("channel").value) && (!code || r.currency === code || !r.currency && ["review", "all"].includes(view)) && (!month || r.date.startsWith(month)) && (!account || r.account_key === account) && (!state ? view === "all" || !r.suppressed : state === "unresolved" ? r.blocked || r.status === "needs_review" : r.status === state) && (!$("from").value || r.date >= $("from").value) && (!$("to").value || r.date <= $("to").value) && (!query || [r.merchant, r.category, r.account, r.kind, r.reference || "", stateLabel(r), ...view === "review" ? reviewReasons(r) : []].join(" ").toLowerCase().includes(query)));
+  }
+  var isEarning = (r) => eligible(r) && !isTransfer(r) && BigInt(r.amount_minor) < 0n && !spendKinds.has(r.kind) && !["payment", "repayment"].includes(r.kind);
+  var isCardPayment = (r) => eligible(r) && !isTransfer(r) && ["payment"].includes(r.kind) && BigInt(r.amount_minor) < 0n;
+  function renderOverview(rows, fmt) {
+    const inRows = rows.filter(isEarning), outRows = rows.filter((r) => eligible(r) && spending(r));
+    const moneyIn = -sum(inRows), spent = sum(outRows), net = moneyIn - spent, cardPaid = -sum(rows.filter(isCardPayment));
+    const kept = moneyIn > 0n ? Number(net * 1000n / moneyIn) / 10 : null;
+    const ovCard = (label, value, hint, cls) => {
+      const c = node("div", undefined, "ov-card" + (cls ? " " + cls : ""));
+      c.append(node("div", label, "label"), node("div", value, "value"));
+      if (hint)
+        c.append(node("div", hint, "muted"));
+      return c;
+    };
+    $("ov-cards").replaceChildren(ovCard("Money in", fmt(moneyIn), inRows.length + " credits", "in"), ovCard("Spent", fmt(spent), outRows.length + " transactions · net of refunds", "out"), ovCard("Net", (net > 0n ? "+" : "") + fmt(net), kept === null ? "No money in for this selection" : net >= 0n ? "Kept " + kept.toFixed(1) + "% of money in" : "Spent more than came in", net >= 0n ? "pos" : "neg"), ovCard("Card bills paid", fmt(cardPaid), "Excluded from spending", ""));
+    const month = $("month").value, dates = rows.map((r) => r.date).sort();
+    $("ov-scope").textContent = month ? prettyMonth(month) : dates.length ? prettyDate(dates[0]) + " to " + prettyDate(dates[dates.length - 1]) : "No transactions in this selection";
+    const byMonth = new Map;
+    inRows.forEach((r) => {
+      const k = r.date.slice(0, 7), v = byMonth.get(k) || [0n, 0n];
+      v[0] -= BigInt(r.amount_minor);
+      byMonth.set(k, v);
+    });
+    outRows.forEach((r) => {
+      const k = r.date.slice(0, 7), v = byMonth.get(k) || [0n, 0n];
+      v[1] += BigInt(r.amount_minor);
+      byMonth.set(k, v);
+    });
+    let max = 0n;
+    byMonth.forEach((v) => {
+      if (v[0] > max)
+        max = v[0];
+      if (v[1] > max)
+        max = v[1];
+    });
+    const pct = (x) => (max > 0n && x > 0n ? Math.max(1, Number(x * 1000n / max) / 10) : 0) + "%";
+    $("ov-months").replaceChildren(...[...byMonth].sort((a, b) => b[0].localeCompare(a[0])).map(([m, [i, o]]) => {
+      const tr = node("tr"), n = i - o;
+      tr.append(node("td", prettyMonth(m)), node("td", fmt(i), "num"), node("td", fmt(o), "num"), node("td", (n > 0n ? "+" : "") + fmt(n), "num " + (n >= 0n ? "pos" : "neg")));
+      const bars = node("td", undefined, "ov-bars"), b1 = node("div", undefined, "mini in"), b2 = node("div", undefined, "mini out");
+      b1.style.width = pct(i);
+      b2.style.width = pct(o);
+      b1.title = "Money in " + fmt(i);
+      b2.title = "Spent " + fmt(o);
+      bars.append(b1, b2);
+      tr.append(bars);
+      return tr;
+    }));
+    if (!byMonth.size) {
+      const tr = node("tr"), td = node("td", "No money in or spending for this selection.", "muted");
+      td.colSpan = 5;
+      tr.append(td);
+      $("ov-months").append(tr);
+    }
+    $("ov-note").textContent = "Money in excludes refunds, repayments and own transfers. Spending includes provisional records and deducts refunds.";
+  }
+  function update() {
+    const filtered = filteredRows(), code = $("currency").value, exp = filtered[0]?.exponent ?? data.rows.find((r) => r.currency === code)?.exponent ?? data.statements.find((s) => s.currency === code)?.exponent ?? null, fmt = (n) => money(n, exp, code || "");
+    const visible = filtered.filter((r) => view === "all" ? true : view === "review" ? needsReview(r) : eligible(r) && (view === "spending" ? spending(r) : view === "transfers" ? isTransfer(r) : !isTransfer(r) && r.amount_minor < 0));
+    renderOverview(filtered, fmt);
+    const included = visible.filter(eligible), saved = included.filter(confirmed), provisional = included.filter((r) => !confirmed(r));
+    const title = { all: "All transactions", spending: "Spending overview", incoming: "Incoming money", transfers: "Own-account transfers", review: "Review" };
+    $("view-title").textContent = title[view];
+    $("table-title").className = ["transactions", "review"].includes(screen) ? "sr-only" : "";
+    $("table-title").textContent = { all: "All transactions", spending: "Transactions", incoming: "Transactions", transfers: "Transactions", review: "Transactions to review" }[view];
+    $("spending-breakdown").hidden = view !== "spending";
+    $("review-panel").hidden = view !== "review";
+    $("monthly-panel").hidden = view !== "spending";
+    $("report-title").textContent = { all: "All transactions", spending: "Spending report", incoming: "Incoming money", transfers: "Transfers", review: "Review" }[view];
+    $("report-period").textContent = [$("month").value ? prettyMonth($("month").value) : [$("from").value, $("to").value].filter(Boolean).map(prettyDate).join(" – "), currencyLabel(code)].filter(Boolean).join(" · ");
+    const notes = { all: "", spending: "Includes provisional records; refunds deducted.", incoming: "Includes refunds and repayments; transfers excluded.", transfers: "Both account legs; excluded from spending.", review: "Blocked rows are excluded from totals; category decisions are included." };
+    $("view-note").textContent = notes[view];
+    $("view-note").hidden = !notes[view];
+    if (view === "spending")
+      cards([["Confirmed net", fmt(sum(saved)), ""], ["Provisional net", fmt(sum(provisional)), ""], ["Estimated net", fmt(sum(included)), ""], ["Refunds", fmt(-sum(included, (r) => r.amount_minor < 0)), ""]]);
+    else if (view === "incoming")
+      cards([["Confirmed money in", fmt(-sum(saved)), ""], ["Provisional money in", fmt(-sum(provisional)), ""], ["Total money in", fmt(-sum(included)), ""], ["Transactions", String(visible.length), ""]]);
+    else if (view === "transfers")
+      cards([["Money out", fmt(sum(included, (r) => r.amount_minor > 0)), ""], ["Money in", fmt(-sum(included, (r) => r.amount_minor < 0)), ""], ["Provisional legs", String(provisional.length), ""], ["Transactions", String(visible.length), ""]]);
+    else if (view === "all")
+      cards([["Source occurrences", String(visible.length), ""], ["Repayments", String(visible.filter((r) => ["payment", "repayment"].includes(r.kind)).length), "Excluded from spending"], ["Review rows", String(visible.filter(needsReview).length), ""], ["Duplicate links", String(visible.filter((r) => r.suppressed).length), "Excluded from totals"]]);
+    else
+      cards([["Transactions to review", String(visible.length), ""], ["Excluded records", String(visible.filter((r) => !eligible(r)).length), ""], ["Category decisions", String(visible.filter((r) => eligible(r) && r.category === "Other").length), ""], ["Source review items", String(sourceReviewItems.length), "Across all sources"]]);
+    const category = new Map;
+    included.filter((r) => spending(r) && r.amount_minor > 0).forEach((r) => category.set(r.category, (category.get(r.category) || 0n) + BigInt(r.amount_minor)));
+    const gross = sum(included, (r) => spending(r) && r.amount_minor > 0), cats = [...category].sort((a, b) => a[1] > b[1] ? -1 : a[1] < b[1] ? 1 : 0);
+    const reportRows = filtered.filter((r) => eligible(r) && confirmed(r));
+    if (screen === "report") {
+      const reportCategory = new Map;
+      reportRows.filter((r) => spending(r) && BigInt(r.amount_minor) > 0n).forEach((r) => reportCategory.set(r.category, (reportCategory.get(r.category) || 0n) + BigInt(r.amount_minor)));
+      const actualCats = [...reportCategory].sort((a, b) => a[1] > b[1] ? -1 : a[1] < b[1] ? 1 : a[0].localeCompare(b[0]));
+      renderCategoryVisuals(actualCats, sum(reportRows, (r) => spending(r) && BigInt(r.amount_minor) > 0n), fmt);
+    } else
+      renderCategoryVisuals(cats, gross, fmt);
+    renderActuals(filtered, fmt);
+    renderDaily(filtered, fmt);
+    renderCategoryChips(included);
+    const monthly = new Map;
+    included.filter(spending).forEach((r) => {
+      const key = r.date.slice(0, 7), v = monthly.get(key) || [0n, 0n];
+      v[confirmed(r) ? 0 : 1] += BigInt(r.amount_minor);
+      monthly.set(key, v);
+    });
+    $("months").replaceChildren(...[...monthly].sort((a, b) => b[0].localeCompare(a[0])).map(([m, v]) => {
+      const tr = node("tr");
+      [prettyMonth(m), fmt(v[0]), fmt(v[1])].forEach((x, i) => tr.append(node("td", x, i ? "num" : undefined)));
+      return tr;
+    }));
+    const tableRows = view === "spending" && categorySelection ? visible.filter((r) => categorySelection.includes(r.category)) : visible;
+    $("category-selection").hidden = !categorySelection || view !== "spending";
+    $("category-selection-label").textContent = categorySelection ? categorySelection.length === 1 ? categorySelection[0] : "Other categories" : "";
+    const sorted = [...tableRows].sort((a, b) => {
+      if (sortKey === "amount_minor" && (a.amount_minor == null || b.amount_minor == null))
+        return a.amount_minor == null ? b.amount_minor == null ? 0 : 1 : -1;
+      const x = sortKey === "amount_minor" ? BigInt(a.amount_minor) : String(a[sortKey]), y = sortKey === "amount_minor" ? BigInt(b.amount_minor) : String(b[sortKey]);
+      return (typeof x === "bigint" ? x > y ? 1 : x < y ? -1 : 0 : x.localeCompare(y)) * direction;
+    });
+    const size = screen === "report" ? 10 : Number($("page-size").value) || 25, pages = Math.max(1, Math.ceil(sorted.length / size));
+    page = Math.min(page, pages - 1);
+    $("transactions").replaceChildren(...sorted.slice(page * size, (page + 1) * size).map((r) => {
+      const tr = node("tr");
+      const amount = amountDisplay(r, fmt, "td", "num" + (r.amount_minor != null && BigInt(r.amount_minor) < 0n ? " credit" : ""));
+      const merchant = node("td", undefined, "merchant");
+      merchant.append(node("span", r.merchant), transactionSourceLink(r));
+      tr.append(node("td", prettyDate(r.date), "date"), merchant, node("td", r.category), node("td", r.kind.replaceAll("_", " "), "kind"), amount, node("td", r.account, "acct"));
+      const td = node("td"), button = node("button", "View", "link");
+      button.type = "button";
+      button.setAttribute("aria-label", "Details for " + r.merchant + " on " + r.date);
+      button.addEventListener("click", () => showDetail(r, button));
+      td.append(button);
+      tr.append(td);
+      return tr;
+    }));
+    $("review-transactions").replaceChildren(...(view === "review" ? sorted.slice(page * size, (page + 1) * size) : []).map((r) => {
+      const item = node("li", undefined, "review-item");
+      const heading = node("div", undefined, "review-item-heading");
+      heading.append(node("strong", r.merchant), amountDisplay(r, fmt, "span", "review-amount"));
+      item.append(heading, node("div", [prettyDate(r.date), r.account].filter(Boolean).join(" · "), "muted"), transactionSourceLink(r));
+      reviewReasons(r).forEach((reason) => item.append(node("p", reason, "review-reason")));
+      const button = node("button", "View details", "link");
+      button.type = "button";
+      button.setAttribute("aria-label", "Details for " + r.merchant + " on " + r.date);
+      button.addEventListener("click", () => showDetail(r, button));
+      item.append(button);
+      return item;
+    }));
+    if (!tableRows.length) {
+      $("review-transactions").append(node("li", "No transactions need review for this selection.", "muted review-empty"));
+      const tr = node("tr"), td = node("td", "No transactions.");
+      td.colSpan = 7;
+      tr.append(td);
+      $("transactions").append(tr);
+    }
+    $("page-info").textContent = tableRows.length ? `${page * size + 1}–${Math.min((page + 1) * size, tableRows.length)} of ${tableRows.length} · Page ${page + 1} of ${pages}` : "0 transactions";
+    $("previous-page").disabled = page === 0;
+    $("next-page").disabled = page >= pages - 1;
+    sortKeys.forEach((key) => $("head-" + key).setAttribute("aria-sort", key === sortKey ? direction === 1 ? "ascending" : "descending" : "none"));
+    routeScreen();
+    reportDesign?.refresh();
+  }
+  var coverageStatements = data.statements.filter((s) => !s.record_type || ["statement", "bank_statement"].includes(s.record_type));
+  var localTime = (value) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", ...sync.timezone ? { timeZone: sync.timezone } : {} }).format(new Date(value));
+  if (sync.merchant_categories?.length) {
+    $("merchant-categories").hidden = false;
+    $("merchant-list").replaceChildren(...sync.merchant_categories.map((merchant) => {
+      const item = node("div", undefined, "source");
+      item.append(node("strong", merchant.merchant), node("div", merchant.category, "muted"));
+      return item;
+    }));
+  }
+  $("review-summary").textContent = "Source issues · " + sourceReviewItems.length;
+  var reviewCount = data.rows.filter(needsReview).length + sourceReviewItems.length;
+  $("review-count").textContent = String(reviewCount);
+  $("review-count").hidden = reviewCount === 0;
+  sourceReviewItems.forEach((item) => {
+    const line = node("li", undefined, "review-item");
+    const matchingSources = data.statements.flatMap((s) => (s.sources || [s.source]).filter((source) => source?.message_id === item.message_id && (!item.mailbox_id || source.mailbox === item.mailbox_id)).map((source) => ({ statement: s, source })));
+    const match = matchingSources.length === 1 ? matchingSources[0] : null;
+    const heading = node("div", undefined, "review-item-heading");
+    heading.append(node("strong", item.account || match?.statement.account || match?.source.filename || "Source awaiting review"));
+    if (item.group)
+      heading.append(node("span", item.group, "muted"));
+    line.append(heading);
+    const context = [match?.source.filename, match?.statement.period].filter(Boolean).join(" · ");
+    if (context)
+      line.append(node("div", context, "muted"));
+    line.append(node("p", item.reason || "This source has an unresolved validation issue; a specific reason was not recorded.", "review-reason"));
+    line.append(sourceDetails(match ? [match.source] : [item], match ? [["Account", match.statement.account], ["Statement period", match.statement.period]] : []));
+    $("review-groups").append(line);
+  });
+  $("footer").textContent = data.generated ? "Updated " + localTime(data.generated) : "Template preview · No account data.";
+  views.forEach((name) => $("view-" + name).addEventListener("click", () => {
+    view = name;
+    if (name === "all") {
+      ["month", "account", "state", "from", "to", "search", "channel"].forEach((id) => $(id).value = "");
+    }
+    screen = name === "review" ? "review" : "transactions";
+    categorySelection = null;
+    page = 0;
+    closeDetail();
+    views.forEach((v) => $("view-" + v).setAttribute("aria-pressed", String(v === view)));
+    update();
+  }));
+  sortKeys.forEach((key) => $("sort-" + key).addEventListener("click", () => {
+    direction = sortKey === key ? -direction : key === "date" || key === "amount_minor" ? -1 : 1;
+    sortKey = key;
+    page = 0;
+    closeDetail();
+    update();
+  }));
+  ["currency", "month", "account", "state", "from", "to", "search", "channel", "page-size"].forEach((id) => $(id).addEventListener("input", () => {
+    if (id !== "page-size")
+      categorySelection = null;
+    page = 0;
+    closeDetail();
+    update();
+  }));
+  $("previous-page").addEventListener("click", () => {
+    if (page > 0)
+      page--;
+    closeDetail();
+    update();
+  });
+  $("next-page").addEventListener("click", () => {
+    page++;
+    closeDetail();
+    update();
+  });
+  $("clear-category").addEventListener("click", () => {
+    categorySelection = null;
+    page = 0;
+    closeDetail();
+    update();
+  });
+  ["report", "transactions"].forEach((name) => $("tab-" + name).addEventListener("click", () => {
+    screen = name;
+    if (view === "review")
+      view = "spending";
+    page = 0;
+    categorySelection = null;
+    closeDetail();
+    update();
+  }));
+  reportDesign = initializeReportDesign();
+  update();
+  function selectCategory(labels) {
+    screen = "transactions";
+    view = "spending";
+    categorySelection = labels;
+    page = 0;
+    closeDetail();
+    update();
+  }
+  function renderCategoryVisuals(cats, gross, fmt) {
+    const allCategories = [...new Set(data.rows.map((r) => r.category))].sort();
+    const usedColors = new Set;
+    const color = (label) => {
+      let index = allCategories.indexOf(label) % 6;
+      while (usedColors.has(index))
+        index = (index + 1) % 5;
+      usedColors.add(index);
+      return "var(--chart-" + (index + 1) + ")";
+    };
+    const percent = (value) => gross > 0n ? Number(value * 100000n / gross) / 1000 : 0;
+    const groups = cats.slice(0, 5).map(([label, value]) => ({ label, value, labels: [label], color: color(label) }));
+    if (cats.length > 5)
+      groups.push({ label: "Other categories", value: cats.slice(5).reduce((a, c) => a + c[1], 0n), labels: cats.slice(5).map((c) => c[0]), color: "var(--chart-6)" });
+    let position = 0;
+    const segments = groups.map((g) => {
+      const start = position;
+      position += percent(g.value);
+      return g.color + " " + start + "% " + position + "%";
+    });
+    if (groups.length)
+      segments.push(groups.at(-1).color + " " + position + "% 100%");
+    $("category-chart").style.background = groups.length ? "conic-gradient(" + segments.join(", ") + ")" : "var(--bar-track)";
+    $("category-chart").setAttribute("aria-label", cats.length ? "Purchases: " + fmt(gross) + ". " + cats.map(([label, value]) => label + " " + fmt(value)).join("; ") : "No purchases for these filters");
+    $("category-total").textContent = fmt(gross);
+    $("categories").replaceChildren(...groups.map((g) => {
+      const button = node("button", undefined, "category-choice"), swatch = node("span", undefined, "category-swatch");
+      button.type = "button";
+      swatch.style.background = g.color;
+      button.setAttribute("aria-pressed", String(!!categorySelection && g.labels.every((c) => categorySelection.includes(c))));
+      button.setAttribute("aria-label", g.label + ": " + fmt(g.value) + "; filter transactions");
+      button.title = fmt(g.value);
+      const pct = percent(g.value);
+      button.append(swatch, node("span", g.label, "category-name"), node("strong", fmt(g.value), "category-amount"), node("span", pct > 0 && pct < 0.1 ? "<0.1%" : pct.toFixed(1) + "%", "pct"));
+      button.addEventListener("click", () => selectCategory(g.labels));
+      return button;
+    }));
+  }
+  function renderActuals(rows, fmt) {
+    const confirmedRows = rows.filter((r) => eligible(r) && confirmed(r));
+    const expenses = confirmedRows.filter(spending);
+    const purchases = sum(expenses, (r) => BigInt(r.amount_minor) > 0n), refunds = -sum(expenses, (r) => BigInt(r.amount_minor) < 0n);
+    const incoming = -sum(confirmedRows.filter(isEarning)), net = purchases - refunds;
+    const values = [["Period", $("month").value ? prettyMonth($("month").value) : [$("from").value, $("to").value].filter(Boolean).map(prettyDate).join(" – ") || "Selected records"], ["Money in", fmt(incoming)], ["Purchases", fmt(purchases)], ["Refunds", fmt(refunds)], ["Net spend", fmt(net)], ["Provisional net", fmt(sum(rows, (r) => eligible(r) && !confirmed(r) && spending(r)))]];
+    $("actuals-summary").replaceChildren(...values.map(([label, value]) => {
+      const tr = node("tr");
+      tr.append(node("th", label), node("td", value, "num"));
+      return tr;
+    }));
+    $("hero-total").textContent = fmt(net);
+    $("hero-caption").textContent = expenses.length + " transaction" + (expenses.length === 1 ? "" : "s");
+    const pending = sum(rows, (r) => eligible(r) && !confirmed(r) && spending(r));
+    $("hero-provisional").hidden = pending === 0n;
+    $("hero-provisional").textContent = pending !== 0n ? "Provisional net " + fmt(pending) : "";
+    const actualCard = (label, value, hint) => {
+      const e = node("div", undefined, "hero-card");
+      e.append(node("span", label, "label"), node("strong", value, "value"));
+      if (hint)
+        e.append(node("span", hint, "muted"));
+      return e;
+    };
+    const { start, end } = observedPeriod(rows);
+    const days = start && end && start <= end ? Math.floor((Date.parse(end + "T00:00:00Z") - Date.parse(start + "T00:00:00Z")) / 86400000) + 1 : 0;
+    $("hero-metrics").replaceChildren(actualCard("Money in", fmt(incoming), "Excludes refunds, repayments and own transfers"), actualCard("Net cash flow", fmt(incoming - net), ""), actualCard("Daily average", fmt(days ? net / BigInt(days) : 0n), days ? "Over " + days + " observed day" + (days === 1 ? "" : "s") : ""));
+    $("actuals-note").textContent = "Confirmed records only. Money in is not necessarily income; it excludes refunds, repayments and own transfers.";
+    const categories = new Map;
+    expenses.forEach((r) => {
+      const v = categories.get(r.category) || [0n, 0n];
+      v[0] += BigInt(r.amount_minor);
+      if (BigInt(r.amount_minor) > 0n)
+        v[1] += BigInt(r.amount_minor);
+      categories.set(r.category, v);
+    });
+    $("actual-expenses").replaceChildren(...[...categories].sort((a, b) => a[1][0] > b[1][0] ? -1 : a[1][0] < b[1][0] ? 1 : a[0].localeCompare(b[0])).map(([label, [value, gross]]) => {
+      const tr = node("tr"), td = node("td"), bar = node("div", undefined, "actual-bar");
+      const share = purchases > 0n ? Number(gross * 10000n / purchases) / 100 : 0;
+      bar.style.width = share + "%";
+      bar.setAttribute("aria-hidden", "true");
+      td.append(node("span", share.toFixed(1) + "%", "muted"), bar);
+      tr.append(node("td", label), node("td", fmt(value), "num"), td);
+      return tr;
+    }));
+    if (!categories.size) {
+      const tr = node("tr"), td = node("td", "No confirmed expenses in this selection.", "muted");
+      td.colSpan = 3;
+      tr.append(td);
+      $("actual-expenses").append(tr);
+    }
+    const total = node("tr", undefined, "actual-total");
+    total.append(node("th", "Total"), node("td", fmt(net), "num"), node("td", ""));
+    $("actual-expenses").append(total);
+  }
+  function routeScreen() {
+    const report = screen === "report", transactions = screen === "transactions", review = screen === "review";
+    const visibility = { "actuals-panel": report, "expenses-panel": report, "summary-panel": transactions, "spending-breakdown": report, "daily-panel": report, "review-panel": review && sourceReviewItems.length > 0, "transactions-panel": report || transactions || review && (reviewCount > sourceReviewItems.length || !sourceReviewItems.length), "monthly-panel": transactions && view === "spending", overview: transactions, "merchant-categories": review && !!sync.merchant_categories?.length };
+    Object.entries(visibility).forEach(([id, visible]) => $(id).hidden = !visible);
+    $("category-chips").hidden = review || view !== "spending";
+    $("transaction-table").hidden = review;
+    $("review-transactions").hidden = !review;
+    $("page-size").disabled = report;
+    $("page-size-control").hidden = report;
+    $("movement-views").hidden = !transactions;
+    ["report", "transactions"].forEach((name) => $("tab-" + name).setAttribute("aria-pressed", String(name === screen)));
+    views.forEach((name) => $("view-" + name).setAttribute("aria-pressed", String(name === "review" ? review : transactions && view === name)));
+    const month = $("month").value || (data.from?.slice(0, 7) === data.to?.slice(0, 7) ? data.from.slice(0, 7) : "");
+    $("report-title").textContent = report ? month ? prettyMonth(month) + " · Monthly report" : "Monthly report" : { transactions: "Transactions", review: "Review" }[screen];
+    const lastDate = data.rows.filter((r) => eligible(r) && (!data.from || r.date >= data.from) && (!data.to || r.date <= data.to) && (!$("month").value || r.date.startsWith($("month").value))).map((r) => r.date).sort().at(-1);
+    const generated = data.generated?.slice(0, 10);
+    const incomplete = generated && data.to && data.to.slice(0, 7) === generated.slice(0, 7);
+    const statementCount = coverageStatements.filter((s) => (!data.to || s.period.slice(0, 10) <= data.to) && (!data.from || s.period.slice(-10) >= data.from)).length;
+    $("coverage-note").textContent = [incomplete ? "Month in progress" : null, !generated ? "Preview" : null, lastDate ? "Latest counted transaction " + prettyDate(lastDate) : "No counted transactions in this period", statementCount + (statementCount === 1 ? " statement overlaps" : " statements overlap") + " this period; coverage may be incomplete", sync.pending_sources?.length ? sync.pending_sources.length + " source item" + (sync.pending_sources.length === 1 ? "" : "s") + " pending" : null].filter(Boolean).join(" · ");
+  }
+  function renderCategoryChips(rows) {
+    const labels = [...new Set(rows.filter((r) => spending(r) && BigInt(r.amount_minor) > 0n).map((r) => r.category))].sort();
+    $("category-chips").replaceChildren(...["All", ...labels].map((label) => {
+      const b = node("button", label);
+      b.type = "button";
+      b.setAttribute("aria-pressed", String(label === "All" ? !categorySelection : categorySelection?.includes(label) || false));
+      b.addEventListener("click", () => {
+        categorySelection = label === "All" ? null : [label];
+        page = 0;
+        closeDetail();
+        update();
+      });
+      return b;
+    }));
+  }
+  function renderDaily(rows, fmt) {
+    const { start, end } = observedPeriod(rows);
+    const amounts = new Map;
+    rows.filter((r) => eligible(r) && confirmed(r) && spending(r) && BigInt(r.amount_minor) > 0n).forEach((r) => amounts.set(r.date, (amounts.get(r.date) || 0n) + BigInt(r.amount_minor)));
+    const days = [];
+    if (start && end && start <= end)
+      for (let t = Date.parse(start + "T00:00:00Z");t <= Date.parse(end + "T00:00:00Z") && days.length < 3660; t += 86400000) {
+        const date = new Date(t).toISOString().slice(0, 10);
+        days.push({ date, value: amounts.get(date) || 0n });
+      }
+    const total = days.reduce((v, d) => v + d.value, 0n), max = days.reduce((v, d) => d.value > v ? d.value : v, 0n), average = days.length ? total / BigInt(days.length) : 0n;
+    const peak = days.find((d) => d.value === max && max > 0n);
+    $("daily-average").textContent = "Average " + fmt(average) + " / day";
+    $("daily-peak").textContent = peak ? "Largest day · " + prettyDate(peak.date) + " · " + fmt(peak.value) : "No confirmed purchases for this selection";
+    $("daily-chart").replaceChildren(...days.map((d) => {
+      const b = node("button", undefined, "daily-bar" + (d === peak ? " peak" : ""));
+      b.type = "button";
+      b.style.height = (max > 0n ? Math.max(1, Number(d.value * 10000n / max) / 100) : 1) + "%";
+      const tip = prettyDate(d.date) + ": " + fmt(d.value) + " confirmed purchases";
+      b.title = tip;
+      b.setAttribute("aria-label", tip);
+      b.addEventListener("click", () => {
+        $("daily-peak").textContent = tip;
+      });
+      return b;
+    }));
+    $("daily-labels").replaceChildren(...[...new Set([start, end].filter(Boolean))].map((d) => node("span", prettyDate(d))));
+    const weekend = days.reduce((v, d) => [0, 6].includes(new Date(d.date + "T00:00:00Z").getUTCDay()) ? v + d.value : v, 0n);
+    const fact = (label, value) => {
+      const n = node("div");
+      n.append(node("span", label, "muted"), node("strong", value));
+      return n;
+    };
+    $("daily-facts").replaceChildren(fact("Days observed", String(days.length)), fact("Days without recorded purchases", String(days.filter((d) => d.value === 0n).length)), fact("Weekend share", total > 0n ? (Number(weekend * 1000n / total) / 10).toFixed(1) + "%" : "—"));
+    $("daily-note").textContent = "Missing sources can leave gaps; an empty day does not establish no spending.";
+  }
+  function observedPeriod(rows) {
+    const dates = rows.filter(eligible).map((r) => r.date).sort();
+    const bounds = [$("month").value ? $("month").value + "-01" : "", $("from").value].filter(Boolean).sort();
+    return { start: bounds.at(-1) || dates[0], end: dates.at(-1) };
+  }
+})();
+</script></html>

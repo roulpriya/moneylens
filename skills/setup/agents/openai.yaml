@@ -1,0 +1,4 @@
+interface:
+  display_name: "Setup"
+  short_description: "Find financial emails through MCP and schedule a report"
+  default_prompt: "Use $setup to verify my connected email MCP provider, find recent card and bank activity and statements, read statement password instructions and ask only for missing inputs, then use the sibling automation skill to prepare my report and schedule refreshes."
