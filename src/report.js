@@ -95,19 +95,19 @@ function reviewReasons(r) {
     const statement = data.statements.find(s => s.id === r.statement);
     reasons.push(...(statement?.checks?.issues || []));
   }
-  if (!r.review_reason && r.kind === "unknown") reasons.push("The source row's movement type could not be identified.");
-  if (!r.review_reason && r.amount_minor == null) reasons.push("The source row's amount could not be read.");
-  if (unverifiedTransferOut(r)) reasons.push("The receiving account has not been confirmed as yours. Resolve whether this is an own-account transfer or an expense.");
-  if (r.status === "draft") reasons.push("The statement is staged and has not been imported.");
+  if (!r.review_reason && r.kind === "unknown") reasons.push("Couldn’t tell if this was money in or out.");
+  if (!r.review_reason && r.amount_minor == null) reasons.push("Couldn’t read the amount.");
+  if (unverifiedTransferOut(r)) reasons.push("Is the receiving account yours? If so, this is a transfer. If not, it counts as spending.");
+  if (r.status === "draft") reasons.push("This statement hasn’t been imported yet.");
   if ((r.blocked || r.status === "needs_review") && !reasons.length)
-    reasons.push("Financial validation is unresolved; this row is excluded from totals.");
+    reasons.push("This row couldn’t be verified, so it isn’t in your totals.");
   if (spending(r) && r.amount_minor > 0 && r.category === "Other")
-    reasons.push("Uncategorized transaction; the validated amount still counts in spending.");
+    reasons.push("No category yet. The amount still counts as spending.");
   return [...new Set(reasons.map(reason => String(reason).trim()).filter(Boolean))];
 }
 var needsReview = (r) => reviewReasons(r).length > 0;
 function stateLabel(r) {
-  return r.suppressed ? "Reconciled duplicate · Excluded" : r.blocked ? "Needs review · Excluded" : r.status === "needs_review" ? "Needs review · Excluded" : r.status === "draft" ? "Provisional · Staged statement" : r.status === "provisional" ? "Provisional · Transaction" : r.status === "posted" ? "Confirmed · Transaction" : r.status === "imported" ? "Confirmed · Saved statement" : r.status;
+  return r.suppressed ? "Reconciled duplicate · Excluded" : r.blocked ? "Needs review · Excluded" : r.status === "needs_review" ? "Needs review · Excluded" : r.status === "draft" ? "Provisional · Statement pending" : r.status === "provisional" ? "Provisional · Transaction" : r.status === "posted" ? "Confirmed · Transaction" : r.status === "imported" ? "Confirmed · Statement" : r.status;
 }
 function amountDisplay(r, fmt, tag, className) {
   const full = stateLabel(r), short = full.split(" · ")[0];
@@ -188,29 +188,29 @@ function transactionSourceLink(r) {
   return button;
 }
 function spendingTreatment(r) {
-  if (r.suppressed) return 'Duplicate-linked occurrence · Excluded from totals';
-  if (!eligible(r)) return 'Validation-blocked transaction · Excluded from totals';
-  if (isInvestment(r)) return 'Investment principal · Excluded from spending and ordinary income';
+  if (r.suppressed) return 'Duplicate · Not counted';
+  if (!eligible(r)) return 'Can’t be verified · Not counted';
+  if (isInvestment(r)) return 'Investment · Not counted as spending or income';
   if (isTransfer(r)) return 'Own-account transfer · Excluded from spending';
-  if (unverifiedTransferOut(r)) return 'Outgoing movement · Transfer ownership needs review';
+  if (unverifiedTransferOut(r)) return 'Outgoing · Check if this was your own account';
   if (spending(r)) return 'Included in spending';
   return ['payment','repayment'].includes(r.kind) ? 'Repayment · Excluded from spending' : 'Incoming money · Excluded from spending';
 }
 function showDetail(r, trigger) {
   detailTrigger = trigger;
   const statement = data.statements.find((s) => s.id === r.statement), sources = transactionSources(r), fmt = (n) => money(n, r.exponent, r.currency);
-  const fields = [["Date", r.date], ["Merchant", r.merchant], ["Category", r.category], ["Movement", r.kind.replaceAll("_", " ")], ["Amount", fmt(r.amount_minor)], ["Account", r.account], ["State", stateLabel(r)], ["Spending treatment", spendingTreatment(r)], ["Payment type", r.channel ?? "Not provided"], ["Source record", r.statement || "Unavailable"], ["Source page / row", (r.page ?? "Unavailable") + " / " + (r.row ?? "Unavailable")]];
+  const fields = [["Date", r.date], ["Merchant", r.merchant], ["Category", r.category], ["Kind", r.kind.replaceAll("_", " ")], ["Amount", fmt(r.amount_minor)], ["Account", r.account], ["State", stateLabel(r)], ["Spending treatment", spendingTreatment(r)], ["Payment type", r.channel ?? "Not provided"], ["Source record", r.statement || "Unavailable"], ["Source page / row", (r.page ?? "Unavailable") + " / " + (r.row ?? "Unavailable")]];
   if (r.reference) fields.push(['Reference', r.reference]);
-  if (r.accounting_reason) fields.push(['Accounting treatment', r.accounting_reason]);
-  fields.push(['Cashflow treatment', !eligible(r) ? 'Excluded while validation is unresolved or the occurrence is duplicate-linked' : bankMovement(r) ? 'Included in bank cashflow' : 'Outside bank cashflow scope']);
+  if (r.accounting_reason) fields.push(['How it’s counted', r.accounting_reason]);
+  fields.push(['In cashflow', !eligible(r) ? 'Excluded while validation is unresolved or the occurrence is duplicate-linked' : bankMovement(r) ? 'Included in bank cashflow' : 'Outside bank cashflow scope']);
   if (eligible(r) && spending(r) && r.category === 'Other') fields.push(['Category review', 'Uncategorized; amount still counts']);
   if (r.duplicate_of || r.review_reason)
-    fields.push(['Source row mapping', r.duplicate_of ? 'Duplicate linked to ' + r.duplicate_of.statement + ' / row ' + r.duplicate_of.index + ': ' + r.duplicate_of.evidence : r.review_reason]);
+    fields.push(['Source row', r.duplicate_of ? 'Duplicate linked to ' + r.duplicate_of.statement + ' / row ' + r.duplicate_of.index + ': ' + r.duplicate_of.evidence : r.review_reason]);
   if (r.original_merchant && r.original_merchant !== r.merchant)
-    fields.push(['Original descriptor', r.original_merchant]);
+    fields.push(['Original description', r.original_merchant]);
   if (r.metadata?.display_note) fields.push(['Source note', r.metadata.display_note]);
   if (needsReview(r)) fields.push(['Review reasons', reviewReasons(r).join(' · ')]);
-  fields.push(['Document completeness', r.coverage_status || statement?.coverage?.status || statement?.checks?.coverage?.status || 'Completeness not verified']);
+  fields.push(['Statement coverage', r.coverage_status || statement?.coverage?.status || statement?.checks?.coverage?.status || 'Completeness not verified']);
   sources.forEach(source => {
     fields.push(["Source", sourceName(source)]);
     if (source.mailbox || source.mailbox_id) fields.push(["Mailbox", source.mailbox || source.mailbox_id]);
@@ -227,14 +227,14 @@ function showDetail(r, trigger) {
       fields.push(['Account section completeness', coverage.section.status]);
       if (coverage.section.gaps?.length) fields.push(['Account section gaps', coverage.section.gaps.join(' · ')]);
     }
-    if (!coverage) fields.push(["Coverage evidence", "Source row coverage evidence is missing, so completeness cannot be verified."]);
+    if (!coverage) fields.push(["Coverage evidence", "We couldn’t check whether this statement is complete."]);
     const gaps = [...new Set(coverage?.gaps || [])];
     if (gaps.length) fields.push(["Coverage gaps", gaps.join(" · ")]);
     if (coverage?.mapped_counts) fields.push(["Source rows", coverage.source_row_count + " total · " + coverage.mapped_counts.retained + " retained · " + coverage.mapped_counts.duplicate_linked + " duplicate linked · " + coverage.mapped_counts.review + " for review"]);
-    if (statement.financial_review_resolved !== undefined) fields.push(["Financial review", statement.financial_review_resolved ? "Resolved" : "Unresolved"]);
+    if (statement.financial_review_resolved !== undefined) fields.push(["Checks", statement.financial_review_resolved ? "Resolved" : "Unresolved"]);
     const checks = statement.checks || {};
     if (checks.issues?.length) fields.push(["Validation issues", checks.issues.join(" · ")]);
-    fields.push(["Passed checks", checks.passed_checks?.length ? checks.passed_checks.map(check => check.replaceAll("_", " ")).join(" · ") : "No independent checks recorded"]);
+    fields.push(["Passed checks", checks.passed_checks?.length ? checks.passed_checks.map(check => check.replaceAll("_", " ")).join(" · ") : "No checks recorded"]);
     if (checks.unavailable_checks?.length) fields.push(["Unavailable checks", checks.unavailable_checks.map(check => check.replaceAll("_", " ")).join(" · ")]);
     if (statement.resolution_notes) fields.push(["Resolution", statement.resolution_notes]);
   }
@@ -270,15 +270,15 @@ function renderExclusions() {
   const rows = scope.filter(withinDates);
   const covered = (data.covered_alerts || []).filter(r => (!$('currency').value || r.currency === $('currency').value) && (!$('account').value || r.account_key === $('account').value) && withinDates(r));
   const items = [
-    [rows.filter(r => r.blocked || r.status === 'needs_review').length, 'Validation-blocked transactions: excluded from all totals until source checks are resolved.'],
-    [rows.filter(r => eligible(r) && spending(r) && r.category === 'Other').length, 'Uncategorized transactions: validated amounts still count in spending.'],
-    [rows.filter(r => eligible(r) && (isTransfer(r) || ['payment','repayment'].includes(r.kind))).length, 'Transfers and repayments: excluded from spending; eligible bank movements remain in cashflow.'],
-    [rows.filter(r => eligible(r) && isInvestment(r)).length, 'Investment principal movements: excluded from spending and ordinary income; included in bank cashflow.'],
-    [rows.filter(r => r.suppressed).length, 'Duplicate-linked occurrences: evidence retained; excluded from totals.'],
-    [covered.length, 'Alerts covered by statements: excluded from financial rows; original evidence retained. Count uses account, currency and dates.'],
-    [scope.filter(r => r.date && !withinDates(r)).length, 'Transactions outside selected dates: retained in the ledger; excluded from this date selection.']
+    [rows.filter(r => r.blocked || r.status === 'needs_review').length, 'Can’t be verified: not counted until resolved.'],
+    [rows.filter(r => eligible(r) && spending(r) && r.category === 'Other').length, 'No category: still counted as spending.'],
+    [rows.filter(r => eligible(r) && (isTransfer(r) || ['payment','repayment'].includes(r.kind))).length, 'Transfers and repayments: not counted as spending, still shown in cashflow.'],
+    [rows.filter(r => eligible(r) && isInvestment(r)).length, 'Investments: not counted as spending or income, shown in cashflow.'],
+    [rows.filter(r => r.suppressed).length, 'Duplicates: kept for reference, not counted.'],
+    [covered.length, 'Alerts matched to a statement: replaced by the statement entry. Counted by account, currency and dates.'],
+    [scope.filter(r => r.date && !withinDates(r)).length, 'Outside your dates: saved, hidden for this range.']
   ];
-  $('accounting-exclusions')?.replaceChildren(node('li', 'Counts use account, currency, payment type and dates, independently of search, record state and transaction view.'), ...items.map(([count, explanation]) => node('li', count + ' · ' + explanation)));
+  $('accounting-exclusions')?.replaceChildren(node('li', 'These counts follow your account, currency, payment type and date filters. Search, status and view don’t change them.'), ...items.map(([count, explanation]) => node('li', count + ' · ' + explanation)));
 }
 
 function update() {
@@ -287,31 +287,31 @@ function update() {
   const visible = filtered.filter((r) => view === "all" ? true : view === "review" ? needsReview(r) : eligible(r) && (view === "spending" ? spending(r) : view === "cashflow" ? bankMovement(r) : view === "transfers" ? isTransfer(r) : !isTransfer(r) && !isInvestment(r) && r.amount_minor < 0));
   renderExclusions();
   const included = visible.filter(eligible), saved = included.filter(confirmed), provisional = included.filter((r) => !confirmed(r));
-  const title = { all: "All transactions", spending: "Spending overview", incoming: "Incoming money", cashflow: "Bank cashflow", transfers: "Own-account transfers", review: "Review" };
+  const title = { all: "All transactions", spending: "Spending", incoming: "Incoming money", cashflow: "Bank cashflow", transfers: "Transfers between your accounts", review: "Review" };
   $("view-title").textContent = title[view];
   $("table-title").className = screen === 'review' ? "sr-only" : "";
   $("table-title").textContent = { all: "All transactions", spending: "Transactions", incoming: "Transactions", cashflow: "Bank movements", transfers: "Transactions", review: "Transactions to review" }[view];
   $("spending-breakdown").hidden = view !== "spending";
   $("review-panel").hidden = view !== "review";
-  $("report-title").textContent = {all:"All transactions",spending:"Spending report",incoming:"Incoming money",cashflow:"Bank cashflow",transfers:"Transfers",review:"Review"}[view];
+  $("report-title").textContent = {all:"All transactions",spending:"Spending",incoming:"Incoming money",cashflow:"Bank cashflow",transfers:"Transfers",review:"Review"}[view];
   const dates=screen==='glance'?filtered.map(r=>r.date).filter(Boolean).sort():[$('from').value,$('to').value].filter(Boolean);
   const periodDates=screen==='glance'?[...new Set([dates[0],dates.at(-1)].filter(Boolean))]:dates;
   $("report-period").textContent = [$("month").value ? prettyMonth($("month").value) : periodDates.map(prettyDate).join(" – "), currencyLabel(code)].filter(Boolean).join(" · ");
-  const notes = { all: "", spending: "", incoming: "Includes refunds and repayments; own transfers and investment principal excluded.", cashflow: "All eligible bank movements, including Investment, Investment withdrawal, repayments and own transfers. Card entries are outside this scope. Principal is excluded from spending and ordinary income; posted interest stays separate.", transfers: "Both account legs; excluded from spending.", review: "Blocked rows are excluded from totals; category decisions are included." };
+  const notes = { all: "", spending: "", incoming: "Includes refunds and repayments; own transfers and investment principal excluded.", cashflow: "Every movement in your bank accounts, including investments, withdrawals, repayments and transfers. Card transactions aren’t included. Investments don’t count as spending or income.", transfers: "Shows both sides of each transfer. Not counted as spending.", review: "Unverified rows aren’t in your totals. Uncategorized rows still count." };
   $("view-note").textContent = notes[view];
   $("view-note").hidden = !notes[view];
   if (view === "spending")
-    cards([["Confirmed net", fmt(sum(saved)), ""], ["Provisional net", fmt(sum(provisional)), ""], ["Estimated net", fmt(sum(included)), ""], ["Refunds", fmt(-sum(included, (r) => r.amount_minor < 0)), ""]]);
+    cards([["Confirmed net", fmt(sum(saved)), ""], ["Provisional net", fmt(sum(provisional)), ""], ["Total net", fmt(sum(included)), ""], ["Refunds", fmt(-sum(included, (r) => r.amount_minor < 0)), ""]]);
   else if (view === "incoming")
     cards([["Confirmed money in", fmt(-sum(saved)), ""], ["Provisional money in", fmt(-sum(provisional)), ""], ["Total money in", fmt(-sum(included)), ""], ["Transactions", String(visible.length), ""]]);
   else if (view === "transfers")
-    cards([["Money out", fmt(sum(included, (r) => r.amount_minor > 0)), ""], ["Money in", fmt(-sum(included, (r) => r.amount_minor < 0)), ""], ["Provisional legs", String(provisional.length), ""], ["Transactions", String(visible.length), ""]]);
+    cards([["Money out", fmt(sum(included, (r) => r.amount_minor > 0)), ""], ["Money in", fmt(-sum(included, (r) => r.amount_minor < 0)), ""], ["Unconfirmed transfers", String(provisional.length), ""], ["Transactions", String(visible.length), ""]]);
   else if (view === 'cashflow')
     cards([["Bank inflows", fmt(-sum(included, r => r.amount_minor < 0)), "Includes investment withdrawals"], ["Bank outflows", fmt(sum(included, r => r.amount_minor > 0)), "Includes investments and repayments"], ["Confirmed net cashflow", fmt(-sum(saved)), "Across selected bank accounts"], ["Provisional net cashflow", fmt(-sum(provisional)), ""]]);
   else if (view === 'all')
-    cards([["Source occurrences", String(visible.length), ""], ["Repayments", String(visible.filter(r => ['payment','repayment'].includes(r.kind)).length), "Excluded from spending"], ["Review rows", String(visible.filter(needsReview).length), ""], ["Duplicate links", String(visible.filter(r => r.suppressed).length), "Excluded from totals"]]);
+    cards([["Records", String(visible.length), ""], ["Repayments", String(visible.filter(r => ['payment','repayment'].includes(r.kind)).length), "Excluded from spending"], ["Needs review", String(visible.filter(needsReview).length), ""], ["Duplicates", String(visible.filter(r => r.suppressed).length), "Excluded from totals"]]);
   else
-    cards([["Transactions to review", String(visible.length), ""], ["Excluded records", String(visible.filter((r) => !eligible(r)).length), ""], ["Category decisions", String(visible.filter((r) => eligible(r) && r.category === "Other").length), ""], ["Source review items", String(sourceReviewItems.length), "Across all sources"]]);
+    cards([["Transactions to review", String(visible.length), ""], ["Excluded", String(visible.filter((r) => !eligible(r)).length), ""], ["Need a category", String(visible.filter((r) => eligible(r) && r.category === "Other").length), ""], ["Source issues", String(sourceReviewItems.length), "All accounts"]]);
   const category = new Map;
   included.filter((r) => spending(r) && r.amount_minor > 0).forEach((r) => category.set(r.category, (category.get(r.category) || 0n) + BigInt(r.amount_minor)));
   const gross = sum(included, (r) => spending(r) && r.amount_minor > 0), cats = [...category].sort((a, b) => a[1] > b[1] ? -1 : a[1] < b[1] ? 1 : 0);
@@ -366,7 +366,7 @@ function update() {
   }));
   if (!tableRows.length) {
     $("review-transactions").append(node("li", "No transactions need review for this selection.", "muted review-empty"));
-    const tr = node("tr"), td = node("td", "No transactions.");
+    const tr = node("tr"), td = node("td", "No transactions match these filters.");
     td.colSpan = 7;
     tr.append(td);
     $("transactions").append(tr);
@@ -387,7 +387,7 @@ if (sync.merchant_categories?.length) {
     return item;
   }));
 }
-$("review-summary").textContent = "Issues to review";
+$("review-summary").textContent = "Needs review";
 const reviewCount = data.rows.filter(needsReview).length + sourceReviewItems.length;
 $("review-count").textContent = String(reviewCount);
 $("review-count").hidden = reviewCount === 0;
@@ -396,12 +396,12 @@ sourceReviewItems.forEach(item => {
   const matchingSources = data.statements.flatMap(s => (s.sources || [s.source]).filter(source => source?.message_id === item.message_id && (!item.mailbox_id || source.mailbox === item.mailbox_id)).map(source => ({statement:s, source})));
   const match = matchingSources.length === 1 ? matchingSources[0] : null;
   const heading = node("div", undefined, "review-item-heading");
-  heading.append(node("strong", item.account || match?.statement.account || match?.source.filename || "Source awaiting review"));
+  heading.append(node("strong", item.account || match?.statement.account || match?.source.filename || "Source issue"));
   if (item.group) heading.append(node("span", item.group, "muted"));
   line.append(heading);
   const context = [match?.source.filename, match?.statement.period].filter(Boolean).join(" · ");
   if (context) line.append(node("div", context, "muted"));
-  line.append(node("p", item.reason || "This source has an unresolved validation issue; a specific reason was not recorded.", "review-reason"));
+  line.append(node("p", item.reason || "Something in this source couldn’t be verified. No details were recorded.", "review-reason"));
   line.append(sourceDetails(match ? [match.source] : [item], match ? [["Account", match.statement.account], ["Statement period", match.statement.period]] : []));
   $("review-groups").append(line);
 });
@@ -463,12 +463,12 @@ function moveMonth(direction) {
 $('previous-month').addEventListener('click',()=>moveMonth(-1));
 $('next-month').addEventListener('click',()=>moveMonth(1));
 function rangeText(from,to) {
-  return from&&to?prettyDate(from)+' – '+prettyDate(to):from?'From '+prettyDate(from):to?'Through '+prettyDate(to):'All time';
+  return from&&to?prettyDate(from)+' – '+prettyDate(to):from?'From '+prettyDate(from):to?'Until '+prettyDate(to):'All time';
 }
 function applyDateRange(from,to) {
   const valid=value=>!value||/^\d{4}-\d{2}-\d{2}$/.test(value)&&!isNaN(Date.parse(value+'T00:00:00Z'))&&new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value;
   if(!valid(from)||!valid(to)||(from&&to&&from>to)){
-    $('range-error').textContent='Choose valid dates with From on or before Through.';$('range-error').hidden=false;return;
+    $('range-error').textContent='Start date must be on or before end date.';$('range-error').hidden=false;return;
   }
   $('from').value=from;$('to').value=to;$('range-error').hidden=true;
   $('report-date-range').open=false;page=0;categorySelection=null;closeDetail();update();$('date-range-toggle').focus?.();
@@ -549,7 +549,7 @@ function renderCategoryVisuals(cats, gross, fmt, provisional = false) {
   // Last stop closes the circle despite integer-ratio rounding.
   if(groups.length) segments.push(groups.at(-1).color+' '+position+'% 100%');
   $('category-chart').style.background = groups.length ? 'conic-gradient('+segments.join(', ')+')' : 'var(--bar-track)';
-  $('category-chart').setAttribute('aria-label', cats.length ? (provisional?'Provisional purchases: ':'Purchases: ')+fmt(gross)+'. '+cats.map(([label,value])=>label+' '+fmt(value)).join('; ') : 'No purchases for these filters');
+  $('category-chart').setAttribute('aria-label', cats.length ? (provisional?'Provisional spending: ':'Spending: ')+fmt(gross)+'. '+cats.map(([label,value])=>label+' '+fmt(value)).join('; ') : 'No spending for these filters');
   $('category-total').textContent = fmt(gross);
   $('category-caption').textContent = (provisional?'Provisional · ':'')+'before refunds';
   categoryColors=new Map(groups.flatMap(g=>g.labels.map(label=>[label,g.color])));
@@ -573,7 +573,7 @@ function renderActuals(rows,fmt) {
   $('cashflow-summary')?.replaceChildren(...cashflows.map(([name,value])=>{const tr=node('tr');tr.append(node('th',(bankBasis.provisional?'Provisional ':'')+name),node('td',fmt(value),'num'));return tr;}));
   const pendingRows=rows.filter(r=>eligible(r)&&!confirmed(r)&&spending(r)),pending=sum(pendingRows);
   const label=(name,provisional=basis.provisional)=>provisional?'Provisional '+name[0].toLowerCase()+name.slice(1):name;
-  const values=[['Period',effectiveMonth()?prettyMonth(effectiveMonth()):rangeText($('from').value,$('to').value)],[label('Money in',incomeBasis.provisional),fmt(incoming)],[label('Purchases'),fmt(purchases)],[label('Refunds'),fmt(refunds)],[label('Net spend'),fmt(net)]];
+  const values=[['Period',effectiveMonth()?prettyMonth(effectiveMonth()):rangeText($('from').value,$('to').value)],[label('Money in',incomeBasis.provisional),fmt(incoming)],[label('Spending'),fmt(purchases)],[label('Refunds'),fmt(refunds)],[label('Net spend'),fmt(net)]];
   if(!basis.provisional)values.push(['Provisional net',fmt(pending)]);
   $('actuals-summary').replaceChildren(...values.map(([label,value])=>{const tr=node('tr');tr.append(node('th',label),node('td',value,'num'));return tr;}));
   $('hero-in-label').textContent='Money in';
@@ -601,12 +601,12 @@ function renderActuals(rows,fmt) {
     const share=purchases>0n?Number(gross*10000n/purchases)/100:0;
     button.append(swatch,node('span',name,'category-name'),node('strong',fmt(value),'category-amount'),node('span',share.toFixed(1)+'%','pct'));
     button.setAttribute('aria-pressed',String(!!categorySelection&&categorySelection.includes(name)));
-    const tip=name+' · '+(basis.provisional?'Provisional purchases ':'Purchases ')+fmt(gross)+' ('+share.toFixed(1)+'%) · Net spending '+fmt(value);
+    const tip=name+' · '+(basis.provisional?'Provisional spending ':'Spending ')+fmt(gross)+' ('+share.toFixed(1)+'%) · Net spending '+fmt(value);
     button.title=tip;chartTooltip(button,tip);
     button.addEventListener('click',()=>selectCategory([name]));return button;
   });
   $('categories').replaceChildren(...categoryRows.slice(0,3));
-  if(!categoryRows.length)$('categories').append(node('p','No expenses in this selection.','muted'));
+  if(!categoryRows.length)$('categories').append(node('p','No spending for this period.','muted'));
   $('actual-expenses').replaceChildren(...categoryRows.slice(3));
   $('expenses-title').hidden=categoryRows.length<=3;
 
@@ -671,10 +671,10 @@ function renderGlance(rows,fmt) {
     button.addEventListener('click',()=>{openReportTransactions();showDetail(r,$('tab-glance'));$('transaction-detail').scrollIntoView?.({block:'start'});});
     item.append(button);return item;
   }));
-  if(!recent.length)$('glance-activity').append(node('li','No transactions for these filters.','glance-empty muted'));
+  if(!recent.length)$('glance-activity').append(node('li','No transactions match these filters.','glance-empty muted'));
   const count=rows.filter(needsReview).length;
   const issues=[count?count+' transaction'+(count===1?'':'s'):'',sourceReviewItems.length?sourceReviewItems.length+' source issue'+(sourceReviewItems.length===1?'':'s'):''].filter(Boolean);
-  $('glance-review').textContent=issues.length?issues.join(' and ')+' to review ↗':'No items needing review';
+  $('glance-review').textContent=issues.length?issues.join(' and ')+' to review ↗':'Nothing needs review';
   $('glance-review').disabled=!count&&!sourceReviewItems.length;
 }
 
@@ -704,11 +704,11 @@ function renderDaily(rows,fmt) {
   }
   const max=days.reduce((v,d)=>d.value>v?d.value:v,0n);
   const peak=days.find(d=>d.value===max&&max>0n);
-  $('daily-chart').setAttribute('aria-label','Daily '+state+' purchases');
+  $('daily-chart').setAttribute('aria-label','Daily '+state+' spending');
   $('daily-chart').replaceChildren(...days.map(d=>{
     const b=node('button',undefined,'daily-bar'+(d===peak?' peak':''));b.type='button';
     b.style.height=(max>0n?Math.max(1,Number(d.value*10000n/max)/100):1)+'%';
-    const tip=prettyDate(d.date)+': '+fmt(d.value)+' '+state+' purchases';chartTooltip(b,tip);
+    const tip=prettyDate(d.date)+': '+fmt(d.value)+' '+state+' spending';chartTooltip(b,tip);
     return b;
   }));
   $('daily-labels').replaceChildren(...[...new Set([start,end].filter(Boolean))].map(d=>node('span',prettyDate(d))));

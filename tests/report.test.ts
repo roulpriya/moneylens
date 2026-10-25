@@ -96,11 +96,11 @@ test('glance labels provisional activity and handles empty months without invent
   expect(e.get('hero-label')!.textContent).toBe('Provisional');
   const amount=e.get('glance-activity')!.children[0].children[0].children[2];
   expect(amount.children[1].attributes['aria-label']).toContain('Provisional');
-  expect(e.get('daily-chart')!.children.at(-1)!.attributes['aria-label']).toContain('INR 200.00 provisional purchases');
+  expect(e.get('daily-chart')!.children.at(-1)!.attributes['aria-label']).toContain('INR 200.00 provisional spending');
   input(e,'month','2026-12');expect(e.get('glance-activity')!.textContent).toContain('No transactions');
   const empty=render([],{rows:[],review_items:[]});
   expect(empty.get('glance-review')!.disabled).toBe(true);
-  expect(empty.get('glance-review')!.textContent).toBe('No items needing review');
+  expect(empty.get('glance-review')!.textContent).toBe('Nothing needs review');
 });
 
 test('glance shows month plus a filter disclosure and moves account and payment controls back to detailed views', () => {
@@ -216,7 +216,7 @@ test('daily chart amounts appear on hover and focus and dismiss on leave, Escape
   expect(tooltip.hidden).toBe(true);
   bar.listeners.pointerenter();
   expect(tooltip.hidden).toBe(false);expect(tooltip.textContent).toBe(bar.attributes['aria-label']);
-  expect(tooltip.textContent).toContain('INR 140.00 confirmed purchases');
+  expect(tooltip.textContent).toContain('INR 140.00 confirmed spending');
   expect(bar.attributes['aria-describedby']).toBe('chart-tooltip');
   bar.listeners.pointerleave();expect(tooltip.hidden).toBe(true);
   expect(bar.attributes['aria-describedby']).toBeUndefined();
@@ -229,7 +229,7 @@ test('category tooltips identify amounts without confusing purchases and net ref
   const e=render(), tooltip=e.get('chart-tooltip')!;
   const categoryBar=e.get('categories')!.children.find(row=>row.children[1].textContent==='Groceries')!;
   categoryBar.listeners.focus();
-  expect(tooltip.textContent).toContain('Purchases INR 120.00');
+  expect(tooltip.textContent).toContain('Spending INR 120.00');
   expect(tooltip.textContent).toContain('Net spending INR 110.00');
 
 });
@@ -269,7 +269,7 @@ test('transfers and review have independent views without inflating spending', (
   click(elements,'view-review');
   expect(values(elements.get('metrics')!)).toEqual(['2','1','1','1']);
   expect(elements.get('review-panel')!.hidden).toBe(false);
-  expect(elements.get('review-summary')!.textContent).toBe('Issues to review');
+  expect(elements.get('review-summary')!.textContent).toBe('Needs review');
 });
 
 test('search and payment filters apply within each view and preserve empty state', () => {
@@ -374,7 +374,7 @@ test('actuals handle refund-only and empty periods and keep currencies separate'
  click(e,'tab-report');
  input(e,'from','2026-09-01');input(e,'to','2026-09-30');expect(e.get('hero-total')!.textContent).toBe('−INR 200.00');
  input(e,'currency','USD');expect(e.get('hero-total')!.textContent).toBe('USD 900.00');
- input(e,'search','missing');expect(e.get('categories')!.textContent).toContain('No expenses');
+ input(e,'search','missing');expect(e.get('categories')!.textContent).toContain('No spending');
  expect(e.get('hero-total')!.textContent).toBe('USD 0.00');
 });
 
@@ -525,7 +525,7 @@ test('incoming credits need ownership proof before exclusion from Money in', () 
   expect(e.get('review-transactions')!.textContent).toContain('Unverified outgoing');
   const row=e.get('review-transactions')!.children.find(r=>r.children[0].children[0].textContent==='Unverified outgoing')!;
   row.children.at(-1)!.listeners.click();
-  expect(e.get('detail-fields')!.textContent).toContain('Transfer ownership needs review');
+  expect(e.get('detail-fields')!.textContent).toContain('Check if this was your own account');
   input(e,'from','2026-09-01');input(e,'to','2026-09-30');
   expect(e.get('hero-in-total')!.textContent).toBe('INR 0.00');
 });
@@ -549,11 +549,11 @@ test('Review uses list items with specific reasons and accessible amounts and de
  expect(items).toHaveLength(5);
  const item=(name:string)=>items.find(r=>r.children[0].children[0].textContent===name)!;
  expect(item('Unreadable row').textContent).toContain('Page 2 row 4 is blurred');
- expect(item('Unreadable row').textContent).not.toContain("The source row's amount could not be read.");
+ expect(item('Unreadable row').textContent).not.toContain("Couldn’t read the amount.");
  expect(item('Balance mismatch').textContent).toContain('Closing balance differs by INR 5.00');
-  expect(item('Unknown category').textContent).toContain('validated amount still counts in spending');
- expect(item('Staged row').textContent).toContain('staged and has not been imported');
- expect(item('Outgoing review').textContent).toContain('receiving account has not been confirmed');
+  expect(item('Unknown category').textContent).toContain('amount still counts as spending');
+ expect(item('Staged row').textContent).toContain('statement hasn’t been imported yet');
+ expect(item('Outgoing review').textContent).toContain('Is the receiving account yours?');
  expect(e.get('review-transactions')!.textContent).not.toContain('Duplicate review');
  expect(items.every(r=>r.children.some(c=>c.className==='review-reason'&&c.textContent.length>0))).toBe(true);
  expect(item('Unreadable row').children[0].children[1].children[1].attributes['aria-label']).toContain('Needs review');
@@ -635,7 +635,7 @@ test('transaction details preserve missing evidence, coverage gaps and completed
    e.get('transactions')!.children.find(row=>row.children[1].children[0].textContent===merchant)!.children[6].children[0].listeners.click();
    return e.get('detail-fields')!.textContent;
  };
- expect(detail('unverified')).toContain('Source row coverage evidence is missing');
+ expect(detail('unverified')).toContain('couldn’t check whether this statement is complete');
  expect(detail('gap')).toContain('Page 4 was not extracted.');
  expect(detail('complete')).toContain('Source coverage complete');
  expect(detail('complete')).toContain('Resolved');
@@ -736,8 +736,8 @@ test('the report falls back to labeled provisional spending, categories, and dai
   expect(e.get('categories')!.children.map(row=>row.children[2].textContent)).toEqual(['INR 100.00','INR 20.00']);
   expect(e.get('category-total')!.textContent).toBe('INR 145.00');
   expect(e.get('category-caption')!.textContent).toContain('Provisional');
-  expect(e.get('daily-chart')!.attributes['aria-label']).toBe('Daily provisional purchases');
-  expect(e.get('daily-chart')!.children.some(bar=>bar.attributes['aria-label'].includes('INR 145.00 provisional purchases'))).toBe(true);
+  expect(e.get('daily-chart')!.attributes['aria-label']).toBe('Daily provisional spending');
+  expect(e.get('daily-chart')!.children.some(bar=>bar.attributes['aria-label'].includes('INR 145.00 provisional spending'))).toBe(true);
   expect(e.get('hero-in-status')!.textContent).toBe('Provisional');
   expect(e.get('hero-in-total')!.textContent).toBe('INR 300.00');
   click(e,'tab-report');
@@ -754,7 +754,7 @@ test('a confirmed net zero remains confirmed even when provisional spending exis
   expect(e.get('hero-total')!.textContent).toBe('INR 0.00');
   expect(e.get('hero-provisional')!.textContent).toBe('Provisional net INR 500.00');
   expect(e.get('category-total')!.textContent).toBe('INR 100.00');
-  expect(e.get('daily-chart')!.attributes['aria-label']).toBe('Daily confirmed purchases');
+  expect(e.get('daily-chart')!.attributes['aria-label']).toBe('Daily confirmed spending');
 });
 
 test('an explicit confirmed zero and a provisional zero both retain their evidence state', () => {
@@ -849,7 +849,7 @@ test('a reconciled account section stays confirmed while sibling document gaps r
   expect(e.get('hero-label')!.textContent).toBe('');
   expect(e.get('hero-total')!.textContent).toBe('INR 12.00');
   e.get('transactions')!.children[0].children[6].children[0].listeners.click();
-  expect(e.get('detail-fields')!.textContent).toContain('Document completenessCompleteness not verified');
+  expect(e.get('detail-fields')!.textContent).toContain('Statement coverageCompleteness not verified');
   expect(e.get('detail-fields')!.textContent).toContain('Account section completenessSection coverage complete');
   click(e,'view-review');
   expect(e.get('review-groups')!.textContent).toContain(documentGap);
@@ -902,13 +902,13 @@ test('bank cashflow excludes card entries and blocked duplicates while retaining
   input(e,'from','2026-10-01');
   expect(e.get('hero-metrics')!.children[1].textContent).toContain('INR 890.00');
   const audit=e.get('accounting-exclusions')!.textContent;
-  expect(audit).toContain('1 · Validation-blocked transactions');
-  expect(audit).toContain('1 · Uncategorized transactions');
+  expect(audit).toContain('1 · Can’t be verified');
+  expect(audit).toContain('1 · No category');
   expect(audit).toContain('1 · Transfers and repayments');
-  expect(audit).toContain('1 · Investment principal movements');
-  expect(audit).toContain('1 · Duplicate-linked occurrences');
-  expect(audit).toContain('1 · Alerts covered by statements');
-  expect(audit).toContain('1 · Transactions outside selected dates');
+  expect(audit).toContain('1 · Investments');
+  expect(audit).toContain('1 · Duplicates');
+  expect(audit).toContain('1 · Alerts matched to a statement');
+  expect(audit).toContain('1 · Outside your dates');
   input(e,'transaction-type','cashflow');
   expect(e.get('transactions')!.children).toHaveLength(4);
   expect(e.get('transactions')!.textContent).not.toContain('Card purchase');
@@ -985,7 +985,7 @@ test('glance keeps totals and chart tooltips without descriptive clutter',()=>{
  for(const id of ['daily-average','daily-peak','daily-facts'])expect(e.has(id)).toBe(false);
  expect(html).not.toContain('class="money-definition"');
  expect(html).not.toContain('Statement confirmation describes transaction evidence');
- expect(html).toContain('>Explore ↗</button>');
+ expect(html).toContain('>See full report ↗</button>');
  expect(e.get('glance-review')!.textContent).toBe('1 transaction and 1 source issue to review ↗');
  const bar=e.get('daily-chart')!.children[0];bar.listeners.click();
  expect(e.get('chart-tooltip')!.hidden).toBe(false);expect(e.get('chart-tooltip')!.textContent).toBe(bar.attributes['aria-label']);
