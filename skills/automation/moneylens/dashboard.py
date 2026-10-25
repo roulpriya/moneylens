@@ -42,11 +42,16 @@ def render(records, from_date=None, to_date=None, existing=None, sync=None):
         elif any(w in lowered for w in ('overlap', 'match', 'reconcil', 'indistinguishable')): group = 'Transaction matching'
         elif any(w in lowered for w in ('account', 'identity', 'new card')): group = 'Accounts'
         else: group = 'Source checks'
-        reviews.setdefault((mailbox_id, message_id, group), {'mailbox_id': mailbox_id, 'group': group, 'message_id': message_id, 'account': account, 'reason': reason})
-        if reason not in reviews[(mailbox_id, message_id, group)]['reason']: reviews[(mailbox_id, message_id, group)]['reason'] += ' · ' + reason
+        key = (mailbox_id, message_id, account, group)
+        reviews.setdefault(key, {'mailbox_id': mailbox_id, 'group': group, 'message_id': message_id, 'account': account, 'reason': reason})
+        if reason not in reviews[key]['reason']: reviews[key]['reason'] += ' · ' + reason
     for statement in statements:
-        for issue in statement['checks']['issues'] + (statement.get('coverage') or {}).get('gaps', []):
+        for issue in statement['checks']['issues']:
             add_review(statement['source']['message_id'], statement['account'], issue, statement['source']['mailbox'])
+        coverage = statement.get('coverage') or {}
+        for gap in coverage.get('gaps', []):
+            account = 'Combined document' if coverage.get('section_count',0)>1 else statement['account']
+            add_review(statement['source']['message_id'], account, 'Document completeness: '+gap, statement['source']['mailbox'])
     for pending in (sync or {}).get('pending_sources', []):
         for index, review in enumerate(pending.get('review_rows', [])):
             rows.append({**review, 'date': review.get('date', ''), 'merchant': 'Unresolved source row: ' + review['reason'],

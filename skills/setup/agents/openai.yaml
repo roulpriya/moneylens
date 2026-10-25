@@ -1,4 +1,4 @@
 interface:
   display_name: "Set up MoneyLens"
   short_description: "Connect email, confirm accounts, and start your spending report"
-  default_prompt: "Use $setup to set up my private MoneyLens spending report from connected financial emails, confirm my accounts, verify statement PDF access, prepare the first report, and schedule recurring updates."
+  default_prompt: "Use $setup to connect my financial emails, confirm my accounts, decrypt and read statement PDFs, and prepare my first MoneyLens report; only after the data is processed and the report is ready, ask about recurring updates."

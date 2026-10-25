@@ -43,7 +43,7 @@ class CredentialFlowTests(unittest.TestCase):
 
     def test_setup_saves_only_passwords_that_unlock_the_pdf(self):
         store=FakeStore()
-        with self.assertRaisesRegex(Failure,'corrected password'):
+        with self.assertRaisesRegex(Failure,'did not unlock'):
             unlock(FakeReader(),['synthetic-wrong'],'scope',store=store)
         self.assertEqual(store.values,{})
         unlock(FakeReader(),['synthetic-correct'],'scope',store=store)

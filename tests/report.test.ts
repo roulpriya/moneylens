@@ -223,7 +223,8 @@ test('daily chart uses confirmed purchases and observed days without inventing c
  expect(e.get('daily-note')!.textContent).toContain('does not establish no spending');
  input(e,'from','2026-10-10');input(e,'month','2026-10');
  expect(e.get('daily-chart')!.children).toHaveLength(13);
- expect(e.get('hero-total')!.textContent).toBe('INR 0.00');
+ expect(e.get('hero-total')!.textContent).toBe('INR 200.00');
+ expect(e.get('hero-label')!.textContent).toBe('Provisional net spend');
  input(e,'search','no matching rows');expect(e.get('daily-chart')!.children).toHaveLength(0);
 });
 
@@ -498,8 +499,8 @@ test('Review shows agent-cached merchant categories without interpreting merchan
 });
 
 
-function neutralRender(rows: Record<string,unknown>[]) {
-  return render([], {rows:rows.map(row=>({date:'2026-10-24',merchant:'Supplied description',category:'Agent category',
+function neutralRender(rows: Record<string,unknown>[], extraData: Record<string,unknown> = {}) {
+  return render([], {...extraData, rows:rows.map(row=>({date:'2026-10-24',merchant:'Supplied description',category:'Agent category',
     kind:'purchase',page:1,row:'1',statement:'source',account:'Agent account',account_key:'opaque',currency:'INR',
     exponent:2,status:'imported',blocked:false,suppressed:false,channel:null,...row}))});
 }
@@ -537,4 +538,118 @@ test('unknown currency remains visible in Review beside known currencies without
   expect(e.get('review-transactions')!.textContent).toContain('Unresolved');
   click(e,'view-all');
   expect(e.get('transactions')!.textContent).toContain('Unresolved currency row');
+});
+
+
+test('the report falls back to labeled provisional spending, categories, and daily purchases', () => {
+  const e=neutralRender([
+    {merchant:'Pending purchase',amount_minor:12500,status:'provisional',category:'Household'},
+    {merchant:'Pending refund',amount_minor:-2500,kind:'refund',status:'provisional',category:'Household'},
+    {merchant:'Pending debit',amount_minor:2000,kind:'debit',status:'provisional',category:'Travel'},
+    {merchant:'Pending credit',amount_minor:-30000,kind:'credit',status:'provisional'},
+    {merchant:'Own transfer',amount_minor:90000,kind:'transfer_out',status:'provisional',excluded_from_spending:true},
+    {merchant:'Repayment',amount_minor:80000,kind:'repayment',status:'provisional'},
+    {merchant:'Blocked purchase',amount_minor:99999,status:'draft',blocked:true},
+    {merchant:'Covered notice',amount_minor:77777,status:'statement_covered'},
+    {merchant:'Duplicate',amount_minor:66666,status:'matched',suppressed:true}
+  ]);
+  expect(e.get('hero-label')!.textContent).toBe('Provisional net spend');
+  expect(e.get('hero-total')!.textContent).toBe('INR 120.00');
+  expect(e.get('hero-caption')!.textContent).toBe('3 provisional transactions');
+  expect(e.get('hero-provisional')!.hidden).toBe(true);
+  expect(e.get('actuals-note')!.textContent).toContain('no confirmed spending is available');
+  expect(e.get('expenses-title')!.textContent).toBe('Provisional expenses by category');
+  expect(e.get('actual-expenses')!.children.at(-1)!.textContent).toContain('INR 120.00');
+  expect(e.get('category-total')!.textContent).toBe('INR 145.00');
+  expect(e.get('category-caption')!.textContent).toContain('Provisional');
+  expect(e.get('daily-chart')!.attributes['aria-label']).toBe('Daily provisional purchases');
+  expect(e.get('daily-chart')!.children[0].attributes['aria-label']).toContain('INR 145.00 provisional purchases');
+  expect(e.get('hero-metrics')!.children[0].textContent).toContain('Provisional money inINR 300.00');
+  click(e,'tab-transactions');
+  expect(values(e.get('metrics')!)).toEqual(['INR 0.00','INR 120.00','INR 120.00','INR 25.00']);
+});
+
+test('a confirmed net zero remains confirmed even when provisional spending exists', () => {
+  const e=neutralRender([
+    {amount_minor:10000,kind:'purchase'},
+    {amount_minor:-10000,kind:'refund'},
+    {amount_minor:50000,status:'provisional'}
+  ]);
+  expect(e.get('hero-label')!.textContent).toBe('Confirmed net spend');
+  expect(e.get('hero-total')!.textContent).toBe('INR 0.00');
+  expect(e.get('hero-provisional')!.textContent).toBe('Provisional net INR 500.00');
+  expect(e.get('category-total')!.textContent).toBe('INR 100.00');
+  expect(e.get('daily-chart')!.attributes['aria-label']).toBe('Daily confirmed purchases');
+});
+
+test('an explicit confirmed zero and a provisional zero both retain their evidence state', () => {
+  const confirmed=neutralRender([{amount_minor:0},{amount_minor:5000,status:'provisional'}]);
+  expect(confirmed.get('hero-label')!.textContent).toBe('Confirmed net spend');
+  expect(confirmed.get('hero-total')!.textContent).toBe('INR 0.00');
+  const provisional=neutralRender([{amount_minor:1000,status:'provisional'},
+    {amount_minor:-1000,kind:'refund',status:'provisional'}]);
+  expect(provisional.get('hero-label')!.textContent).toBe('Provisional net spend');
+  expect(provisional.get('hero-total')!.textContent).toBe('INR 0.00');
+});
+
+test('fallback follows account and currency filters and returns to confirmed amounts when available', () => {
+  const e=neutralRender([
+    {account:'Account A',account_key:'a',amount_minor:1000},
+    {account:'Account B',account_key:'b',amount_minor:5500,status:'provisional'},
+    {account:'Account B',account_key:'b',currency:'JPY',exponent:0,amount_minor:321,status:'provisional'}
+  ]);
+  input(e,'currency','INR');
+  expect(e.get('hero-label')!.textContent).toBe('Confirmed net spend');
+  expect(e.get('hero-total')!.textContent).toBe('INR 10.00');
+  input(e,'account','b');
+  expect(e.get('hero-label')!.textContent).toBe('Provisional net spend');
+  expect(e.get('hero-total')!.textContent).toBe('INR 55.00');
+  input(e,'currency','JPY');
+  expect(e.get('hero-total')!.textContent).toBe('JPY 321');
+  input(e,'currency','INR');input(e,'account','a');
+  expect(e.get('hero-label')!.textContent).toBe('Confirmed net spend');
+  expect(e.get('hero-total')!.textContent).toBe('INR 10.00');
+});
+
+test('confirmed income does not hide provisional expenses and income fallback is labeled separately', () => {
+  const e=neutralRender([{amount_minor:-10000,kind:'credit'},
+    {amount_minor:2500,status:'provisional'}]);
+  expect(e.get('hero-label')!.textContent).toBe('Provisional net spend');
+  expect(e.get('hero-total')!.textContent).toBe('INR 25.00');
+  expect(e.get('hero-metrics')!.children[0].children[0].textContent).toBe('Money in');
+  expect(e.get('hero-metrics')!.children[1].children[0].textContent).toBe('Provisional net cash flow');
+  const incoming=neutralRender([{amount_minor:1000},
+    {amount_minor:-2000,kind:'credit',status:'provisional'}]);
+  expect(incoming.get('hero-label')!.textContent).toBe('Confirmed net spend');
+  expect(incoming.get('hero-metrics')!.children[0].textContent).toContain('Provisional money inINR 20.00');
+});
+
+test('blocked and statement-covered rows cannot become provisional fallback amounts', () => {
+  const e=neutralRender([{amount_minor:7000,status:'draft',blocked:true},
+    {amount_minor:8000,status:'statement_covered'},{amount_minor:9000,status:'matched',suppressed:true}]);
+  expect(e.get('hero-label')!.textContent).toBe('Net spend');
+  expect(e.get('hero-total')!.textContent).toBe('INR 0.00');
+  expect(e.get('category-total')!.textContent).toBe('INR 0.00');
+  expect(e.get('daily-chart')!.children).toHaveLength(0);
+});
+
+
+test('a reconciled account section stays confirmed while sibling document gaps remain visible', () => {
+  const documentGap='Section deposit-summary: individual withdrawals and exact interest dates are unavailable';
+  const coverage={verified:false,status:'Completeness not verified',gaps:[documentGap],
+    section:{id:'savings',verified:true,status:'Section coverage complete',gaps:[]},
+    source_row_count:44,mapped_counts:{retained:44,duplicate_linked:0,review:0}};
+  const e=neutralRender([{merchant:'Reconciled savings purchase',amount_minor:1200}],{
+    statements:[{id:'source',account:'Savings',currency:'INR',period:'Sep 2026',status:'imported',
+      coverage,financial_review_resolved:true,source:{mailbox:'box',message_id:'combined',filename:'combined.pdf'},
+      checks:{issues:[],coverage,passed_checks:['balance_reconciliation'],unavailable_checks:[]}}],
+    review_items:[{group:'Source checks',account:'Savings',mailbox_id:'box',message_id:'combined',reason:documentGap}]
+  });
+  expect(e.get('hero-label')!.textContent).toBe('Confirmed net spend');
+  expect(e.get('hero-total')!.textContent).toBe('INR 12.00');
+  e.get('transactions')!.children[0].children[1].children[1].listeners.click();
+  expect(e.get('detail-fields')!.textContent).toContain('Document completenessCompleteness not verified');
+  expect(e.get('detail-fields')!.textContent).toContain('Account section completenessSection coverage complete');
+  click(e,'view-review');
+  expect(e.get('review-groups')!.textContent).toContain(documentGap);
 });

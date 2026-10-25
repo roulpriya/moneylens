@@ -36,7 +36,7 @@ def unlock(reader, candidates, account, no_prompt=False, store=None):
         if reader.decrypt(candidate):
             store.save(account, candidate)
             return
-    raise Failure('Setup required: saved or supplied password did not unlock this PDF; verify the source instructions and supply a corrected password')
+    raise Failure('Setup required: saved or supplied candidates did not unlock this PDF; the unlock instructions and required inputs need review')
 
 
 

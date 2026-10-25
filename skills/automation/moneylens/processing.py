@@ -92,18 +92,18 @@ def process_batch(data_dir, batch, render_report=True):
                 outcome = {'result': 'needs_review', 'reason': str(error), **(failed_row_mappings(config, payload, str(error)) if kind == 'statement' else {})}
                 with db: record_outcome(db, source, outcome, qualifier)
             outcomes.append({**outcome, 'mailbox_id': source.get('mailbox'), 'message_id': source['message_id']})
-        # Later sections/targets can supply the missing evidence for earlier
-        # drafts. Reassess only statements touched by this authorized batch.
+        # Reassess touched sections after the batch so returned document coverage
+        # includes siblings supplied later, without blocking healthy sections.
         from .ledger import assessment
         for outcome in outcomes:
-            if outcome.get('result') != 'staged': continue
+            if outcome.get('result') not in {'staged','imported','already_imported'}: continue
             with db:
                 db.execute("BEGIN IMMEDIATE")
                 current = records(db)
                 record = find(current, outcome['id'])
                 checked = assessment(record, current)
                 outcome.update(checked)
-                if not checked['issues']:
+                if record['status']=='draft' and not checked['issues']:
                     outcome.update(import_record(db,record['id']))
                 record_outcome(db, record['payload']['source'], outcome,
                                hash_value(['statement', record['payload']['account_key'], record['payload']['currency'], []])[:24])

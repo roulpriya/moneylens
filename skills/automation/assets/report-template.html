@@ -1510,11 +1510,11 @@ td.merchant .transaction-source {
 <div id="movement-views" class="movement-views" aria-label="Transaction type" hidden><button id="view-all" type="button" aria-pressed="false">All transactions</button><button id="view-spending" type="button" aria-pressed="true">Spending</button><button id="view-incoming" type="button" aria-pressed="false">Incoming money</button><button id="view-transfers" type="button" aria-pressed="false">Transfers</button></div>
 <div id="report-components" class="report-components">
 <section id="actuals-panel" class="component actuals-panel full-width" data-component="actuals" aria-label="Monthly actuals">
-<div class="actuals-hero"><div class="hero-spend"><p class="eyebrow">Confirmed net spend</p><div id="hero-total" class="hero-total"></div><p id="hero-caption"></p><span id="hero-provisional" class="provisional-note"></span></div><div id="hero-metrics" class="hero-metrics"></div></div>
+<div class="actuals-hero"><div class="hero-spend"><p id="hero-label" class="eyebrow">Net spend</p><div id="hero-total" class="hero-total"></div><p id="hero-caption"></p><span id="hero-provisional" class="provisional-note"></span></div><div id="hero-metrics" class="hero-metrics"></div></div>
 <details class="actuals-reconciliation"><summary>Breakdown</summary><table aria-label="Monthly actuals"><tbody id="actuals-summary"></tbody></table><p id="actuals-note" class="muted"></p></details></section>
-<section id="expenses-panel" class="panel component full-width" data-component="expenses"><h2>Expenses by category</h2><div class="scroll"><table aria-label="Expenses by category"><thead><tr><th>Category</th><th class="num">Net spend</th><th>Share of purchases</th></tr></thead><tbody id="actual-expenses"></tbody></table></div></section>
+<section id="expenses-panel" class="panel component full-width" data-component="expenses"><h2 id="expenses-title">Expenses by category</h2><div class="scroll"><table aria-label="Expenses by category"><thead><tr><th>Category</th><th class="num">Net spend</th><th>Share of purchases</th></tr></thead><tbody id="actual-expenses"></tbody></table></div></section>
 <section id="summary-panel" class="component full-width" data-component="summary" aria-labelledby="view-title"><h2 id="view-title" class="sr-only">Spending summary</h2><p id="view-note" class="muted"></p><div class="metrics" id="metrics"></div></section>
-<section id="spending-breakdown" class="panel component category-panel" data-component="categories"><div class="section-heading"><h2>Where it went</h2></div><div class="category-composition"><div id="category-chart" class="category-chart" role="img" aria-label="Purchases by category"><div class="donut-center"><strong id="category-total"></strong><span>before refunds</span></div></div><div id="categories" class="category-legend"></div></div></section>
+<section id="spending-breakdown" class="panel component category-panel" data-component="categories"><div class="section-heading"><h2>Where it went</h2></div><div class="category-composition"><div id="category-chart" class="category-chart" role="img" aria-label="Purchases by category"><div class="donut-center"><strong id="category-total"></strong><span id="category-caption">before refunds</span></div></div><div id="categories" class="category-legend"></div></div></section>
 <section id="daily-panel" class="panel component daily-panel" data-component="daily"><div class="section-heading"><h2>Daily spend</h2><span id="daily-average" class="muted"></span></div><p id="daily-peak" class="daily-peak"></p><div id="daily-chart" class="daily-chart" role="group" aria-label="Daily confirmed purchases"></div><div id="daily-labels" class="daily-labels muted"></div><div id="daily-facts" class="daily-facts"></div><p id="daily-note" class="muted"></p></section>
 <section id="review-panel" class="panel component full-width" data-component="review" hidden><h2 id="review-summary">Source issues</h2><ul id="review-groups" class="review-list" aria-label="Source issues"></ul></section>
 <section id="transactions-panel" class="panel component full-width" data-component="transactions"><div class="transaction-heading"><h2 id="table-title">Transactions</h2><div id="category-selection" hidden><span id="category-selection-label"></span><button id="clear-category" type="button" class="link">Clear filter</button></div></div><div id="category-chips" class="category-chips" aria-label="Filter transactions by category"></div><ul id="review-transactions" class="review-list" aria-label="Transactions to review" hidden></ul><div id="transaction-table" class="scroll"><table aria-label="Transactions"><thead><tr><th id="head-date" aria-sort="descending"><button id="sort-date" type="button">Date</button></th><th id="head-merchant" aria-sort="none"><button id="sort-merchant" type="button">Merchant</button></th><th id="head-category" aria-sort="none"><button id="sort-category" type="button">Category</button></th><th id="head-kind" aria-sort="none"><button id="sort-kind" type="button">Movement</button></th><th id="head-amount_minor" class="num" aria-sort="none"><button id="sort-amount_minor" type="button">Amount</button></th><th id="head-account" aria-sort="none"><button id="sort-account" type="button">Account</button></th><th>Details</th></tr></thead><tbody id="transactions"></tbody></table></div><div class="pagination"><label id="page-size-control">Rows<select id="page-size"><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label><span id="page-info" role="status" aria-live="polite"></span><div><button id="previous-page" type="button">Previous</button><button id="next-page" type="button">Next</button></div></div><section id="transaction-detail" class="panel" hidden aria-labelledby="detail-title"><button id="close-detail" type="button">Close</button><h2 id="detail-title">Transaction details</h2><dl id="detail-fields"></dl></section></section>
@@ -1794,6 +1794,11 @@ td.merchant .transaction-source {
   var eligible = (r) => !r.blocked && !r.suppressed && ["imported", "posted", "provisional", "draft"].includes(r.status);
   var confirmed = (r) => ["imported", "posted"].includes(r.status);
   var spending = (r) => !isTransfer(r) && spendKinds.has(r.kind);
+  function preferredAmounts(rows, predicate) {
+    const available = rows.filter((r) => eligible(r) && Number.isSafeInteger(r.amount_minor) && predicate(r));
+    const saved = available.filter(confirmed);
+    return { rows: saved.length ? saved : available.filter((r) => !confirmed(r)), provisional: !saved.length && available.length > 0 };
+  }
   function reviewReasons(r) {
     if (r.suppressed)
       return [];
@@ -1919,7 +1924,7 @@ td.merchant .transaction-source {
       fields.push(["Source note", r.metadata.display_note]);
     if (needsReview(r))
       fields.push(["Review reasons", reviewReasons(r).join(" · ")]);
-    fields.push(["Source completeness", r.coverage_status || statement?.coverage?.status || statement?.checks?.coverage?.status || "Completeness not verified"]);
+    fields.push(["Document completeness", r.coverage_status || statement?.coverage?.status || statement?.checks?.coverage?.status || "Completeness not verified"]);
     sources.forEach((source) => {
       fields.push(["Source", sourceName(source)]);
       if (source.mailbox || source.mailbox_id)
@@ -1936,6 +1941,11 @@ td.merchant .transaction-source {
     if (statement) {
       fields.push(["Statement period", statement.period]);
       const coverage = statement.coverage || statement.checks?.coverage;
+      if (coverage?.section) {
+        fields.push(["Account section completeness", coverage.section.status]);
+        if (coverage.section.gaps?.length)
+          fields.push(["Account section gaps", coverage.section.gaps.join(" · ")]);
+      }
       if (!coverage)
         fields.push(["Coverage evidence", "Source row coverage evidence is missing, so completeness cannot be verified."]);
       const gaps = [...new Set(coverage?.gaps || [])];
@@ -2062,12 +2072,12 @@ td.merchant .transaction-source {
     const category = new Map;
     included.filter((r) => spending(r) && r.amount_minor > 0).forEach((r) => category.set(r.category, (category.get(r.category) || 0n) + BigInt(r.amount_minor)));
     const gross = sum(included, (r) => spending(r) && r.amount_minor > 0), cats = [...category].sort((a, b) => a[1] > b[1] ? -1 : a[1] < b[1] ? 1 : 0);
-    const reportRows = filtered.filter((r) => eligible(r) && confirmed(r));
+    const reportBasis = preferredAmounts(filtered, spending), reportRows = reportBasis.rows;
     if (screen === "report") {
       const reportCategory = new Map;
       reportRows.filter((r) => spending(r) && BigInt(r.amount_minor) > 0n).forEach((r) => reportCategory.set(r.category, (reportCategory.get(r.category) || 0n) + BigInt(r.amount_minor)));
       const actualCats = [...reportCategory].sort((a, b) => a[1] > b[1] ? -1 : a[1] < b[1] ? 1 : a[0].localeCompare(b[0]));
-      renderCategoryVisuals(actualCats, sum(reportRows, (r) => spending(r) && BigInt(r.amount_minor) > 0n), fmt);
+      renderCategoryVisuals(actualCats, sum(reportRows, (r) => spending(r) && BigInt(r.amount_minor) > 0n), fmt, reportBasis.provisional);
     } else
       renderCategoryVisuals(cats, gross, fmt);
     renderActuals(filtered, fmt);
@@ -2229,7 +2239,7 @@ td.merchant .transaction-source {
     closeDetail();
     update();
   }
-  function renderCategoryVisuals(cats, gross, fmt) {
+  function renderCategoryVisuals(cats, gross, fmt, provisional = false) {
     const allCategories = [...new Set(data.rows.map((r) => r.category))].sort();
     const usedColors = new Set;
     const color = (label) => {
@@ -2252,8 +2262,9 @@ td.merchant .transaction-source {
     if (groups.length)
       segments.push(groups.at(-1).color + " " + position + "% 100%");
     $("category-chart").style.background = groups.length ? "conic-gradient(" + segments.join(", ") + ")" : "var(--bar-track)";
-    $("category-chart").setAttribute("aria-label", cats.length ? "Purchases: " + fmt(gross) + ". " + cats.map(([label, value]) => label + " " + fmt(value)).join("; ") : "No purchases for these filters");
+    $("category-chart").setAttribute("aria-label", cats.length ? (provisional ? "Provisional purchases: " : "Purchases: ") + fmt(gross) + ". " + cats.map(([label, value]) => label + " " + fmt(value)).join("; ") : "No purchases for these filters");
     $("category-total").textContent = fmt(gross);
+    $("category-caption").textContent = (provisional ? "Provisional · " : "") + "before refunds";
     $("categories").replaceChildren(...groups.map((g) => {
       const button = node("button", undefined, "category-choice"), swatch = node("span", undefined, "category-swatch");
       button.type = "button";
@@ -2268,21 +2279,25 @@ td.merchant .transaction-source {
     }));
   }
   function renderActuals(rows, fmt) {
-    const confirmedRows = rows.filter((r) => eligible(r) && confirmed(r));
-    const expenses = confirmedRows.filter(spending);
+    const basis = preferredAmounts(rows, spending), incomeBasis = preferredAmounts(rows, isEarning);
+    const expenses = basis.rows;
     const purchases = sum(expenses, (r) => BigInt(r.amount_minor) > 0n), refunds = -sum(expenses, (r) => BigInt(r.amount_minor) < 0n);
-    const incoming = -sum(confirmedRows.filter(isEarning)), net = purchases - refunds;
-    const values = [["Period", $("month").value ? prettyMonth($("month").value) : [$("from").value, $("to").value].filter(Boolean).map(prettyDate).join(" – ") || "Selected records"], ["Money in", fmt(incoming)], ["Purchases", fmt(purchases)], ["Refunds", fmt(refunds)], ["Net spend", fmt(net)], ["Provisional net", fmt(sum(rows, (r) => eligible(r) && !confirmed(r) && spending(r)))]];
+    const incoming = -sum(incomeBasis.rows), net = purchases - refunds;
+    const pendingRows = rows.filter((r) => eligible(r) && !confirmed(r) && spending(r)), pending = sum(pendingRows);
+    const label = (name, provisional = basis.provisional) => provisional ? "Provisional " + name[0].toLowerCase() + name.slice(1) : name;
+    const values = [["Period", $("month").value ? prettyMonth($("month").value) : [$("from").value, $("to").value].filter(Boolean).map(prettyDate).join(" – ") || "Selected records"], [label("Money in", incomeBasis.provisional), fmt(incoming)], [label("Purchases"), fmt(purchases)], [label("Refunds"), fmt(refunds)], [label("Net spend"), fmt(net)]];
+    if (!basis.provisional)
+      values.push(["Provisional net", fmt(pending)]);
     $("actuals-summary").replaceChildren(...values.map(([label, value]) => {
       const tr = node("tr");
       tr.append(node("th", label), node("td", value, "num"));
       return tr;
     }));
+    $("hero-label").textContent = basis.provisional ? "Provisional net spend" : expenses.length ? "Confirmed net spend" : "Net spend";
     $("hero-total").textContent = fmt(net);
-    $("hero-caption").textContent = expenses.length + " transaction" + (expenses.length === 1 ? "" : "s");
-    const pending = sum(rows, (r) => eligible(r) && !confirmed(r) && spending(r));
-    $("hero-provisional").hidden = pending === 0n;
-    $("hero-provisional").textContent = pending !== 0n ? "Provisional net " + fmt(pending) : "";
+    $("hero-caption").textContent = expenses.length + (basis.provisional ? " provisional" : "") + " transaction" + (expenses.length === 1 ? "" : "s");
+    $("hero-provisional").hidden = basis.provisional || !pendingRows.length;
+    $("hero-provisional").textContent = !basis.provisional && pendingRows.length ? "Provisional net " + fmt(pending) : "";
     const actualCard = (label, value, hint) => {
       const e = node("div", undefined, "hero-card");
       e.append(node("span", label, "label"), node("strong", value, "value"));
@@ -2292,8 +2307,9 @@ td.merchant .transaction-source {
     };
     const { start, end } = observedPeriod(rows);
     const days = start && end && start <= end ? Math.floor((Date.parse(end + "T00:00:00Z") - Date.parse(start + "T00:00:00Z")) / 86400000) + 1 : 0;
-    $("hero-metrics").replaceChildren(actualCard("Money in", fmt(incoming), "Excludes refunds, repayments and own transfers"), actualCard("Net cash flow", fmt(incoming - net), ""), actualCard("Daily average", fmt(days ? net / BigInt(days) : 0n), days ? "Over " + days + " observed day" + (days === 1 ? "" : "s") : ""));
-    $("actuals-note").textContent = "Confirmed records only. Money in is not necessarily income; it excludes refunds, repayments and own transfers.";
+    $("hero-metrics").replaceChildren(actualCard(label("Money in", incomeBasis.provisional), fmt(incoming), "Excludes refunds, repayments and own transfers"), actualCard(label("Net cash flow", basis.provisional || incomeBasis.provisional), fmt(incoming - net), ""), actualCard(label("Daily average"), fmt(days ? net / BigInt(days) : 0n), days ? "Over " + days + " observed day" + (days === 1 ? "" : "s") : ""));
+    $("actuals-note").textContent = (basis.provisional ? "Provisional spending shown because no confirmed spending is available for this selection." : "Confirmed spending shown when available.") + (incomeBasis.provisional ? " Money in is provisional because no confirmed money in is available." : "") + " Money in is not necessarily income; it excludes refunds, repayments and own transfers.";
+    $("expenses-title").textContent = basis.provisional ? "Provisional expenses by category" : "Expenses by category";
     const categories = new Map;
     expenses.forEach((r) => {
       const v = categories.get(r.category) || [0n, 0n];
@@ -2357,9 +2373,10 @@ td.merchant .transaction-source {
     }));
   }
   function renderDaily(rows, fmt) {
+    const basis = preferredAmounts(rows, spending), state = basis.provisional ? "provisional" : "confirmed";
     const { start, end } = observedPeriod(rows);
     const amounts = new Map;
-    rows.filter((r) => eligible(r) && confirmed(r) && spending(r) && BigInt(r.amount_minor) > 0n).forEach((r) => amounts.set(r.date, (amounts.get(r.date) || 0n) + BigInt(r.amount_minor)));
+    basis.rows.filter((r) => BigInt(r.amount_minor) > 0n).forEach((r) => amounts.set(r.date, (amounts.get(r.date) || 0n) + BigInt(r.amount_minor)));
     const days = [];
     if (start && end && start <= end)
       for (let t = Date.parse(start + "T00:00:00Z");t <= Date.parse(end + "T00:00:00Z") && days.length < 3660; t += 86400000) {
@@ -2368,13 +2385,14 @@ td.merchant .transaction-source {
       }
     const total = days.reduce((v, d) => v + d.value, 0n), max = days.reduce((v, d) => d.value > v ? d.value : v, 0n), average = days.length ? total / BigInt(days.length) : 0n;
     const peak = days.find((d) => d.value === max && max > 0n);
-    $("daily-average").textContent = "Average " + fmt(average) + " / day";
-    $("daily-peak").textContent = peak ? "Largest day · " + prettyDate(peak.date) + " · " + fmt(peak.value) : "No confirmed purchases for this selection";
+    $("daily-average").textContent = (basis.provisional ? "Provisional average " : "Average ") + fmt(average) + " / day";
+    $("daily-peak").textContent = peak ? (basis.provisional ? "Largest provisional day · " : "Largest day · ") + prettyDate(peak.date) + " · " + fmt(peak.value) : "No " + state + " purchases for this selection";
+    $("daily-chart").setAttribute("aria-label", "Daily " + state + " purchases");
     $("daily-chart").replaceChildren(...days.map((d) => {
       const b = node("button", undefined, "daily-bar" + (d === peak ? " peak" : ""));
       b.type = "button";
       b.style.height = (max > 0n ? Math.max(1, Number(d.value * 10000n / max) / 100) : 1) + "%";
-      const tip = prettyDate(d.date) + ": " + fmt(d.value) + " confirmed purchases";
+      const tip = prettyDate(d.date) + ": " + fmt(d.value) + " " + state + " purchases";
       b.title = tip;
       b.setAttribute("aria-label", tip);
       b.addEventListener("click", () => {
@@ -2390,7 +2408,7 @@ td.merchant .transaction-source {
       return n;
     };
     $("daily-facts").replaceChildren(fact("Days observed", String(days.length)), fact("Days without recorded purchases", String(days.filter((d) => d.value === 0n).length)), fact("Weekend share", total > 0n ? (Number(weekend * 1000n / total) / 10).toFixed(1) + "%" : "—"));
-    $("daily-note").textContent = "Missing sources can leave gaps; an empty day does not establish no spending.";
+    $("daily-note").textContent = (basis.provisional ? "Provisional purchases shown because no confirmed spending is available. " : "") + "Missing sources can leave gaps; an empty day does not establish no spending.";
   }
   function observedPeriod(rows) {
     const dates = rows.filter(eligible).map((r) => r.date).sort();

@@ -29,7 +29,7 @@ exact cached merchant mapping exists; explicit labels retain priority.
   support.
 - Settings use `mailboxes`, `bank_accounts`, and `credential_scope`. Collection and
   scheduling fields are outside the accounting schema.
-- Every statement uses the same coverage/ownership validation, whether draft or imported.
+- Every account/currency section uses the same coverage/ownership validation, whether draft or imported. Section eligibility is independent of sibling gaps; whole-document completeness and its review reasons remain visible.
   IDs include source/account/currency from the start and do not depend on import order.
 - Reports use template/data schema 4; unsupported HTML is rejected without rewriting.
   Appearance preferences use a new release-specific browser-storage key.

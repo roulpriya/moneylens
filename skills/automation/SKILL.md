@@ -14,6 +14,8 @@ Command shorthands use the installed Python 3.10+ executable and absolute skill 
 
 Quote paths and JSON for the current shell. No script pulls email, calls MCP, acquires workflow leases, manages scan runs/cursors/retry queues, or schedules work. The agent handles selection, collection dates, pagination, source inventories, unresolved retrievals, and scheduling through the appropriate tools. SQLite transactions protect local accounting writes only.
 
+When a missing or ambiguous choice requires user input, use the host's available structured input tool, such as `request_user_input`, `request_user_input_async`, or `ask_user`, in the current mode instead of asking only in prose. Ask exactly one question per tool call and request only one value or decision: the UI has one text-input field. Never combine multiple details or submit a list of questions. Wait for the answer before asking the next question; continue independent work while waiting. Ask only for unresolved choices, and reuse existing answers and recurring authorization. If no suitable input tool is available, ask one concise question in chat and wait. Route credential repair to `$setup` and its private credential workflow.
+
 Prefer static rules and saved decisions whenever the inputs determine the result. Reuse explicit user choices, confirmed account mappings, exact merchant categories, and verified credentials. Use scripts for PDF text extraction, decimal conversion, validation, source identity, reconciliation, statement precedence, totals, and report generation. Do not request LLM classification or recomputation for these operations. Use LLM judgment only for unfamiliar source semantics or uncached merchants that require interpretation; cache resolved merchant decisions for later reuse. Retrieval remains agent-owned through MCP, and deterministic rules must use explicit data rather than embedded country, institution, payment-system, or merchant assumptions.
 
 For a transaction correction, skip collection: use `list`, then `update --id <ID>` with the requested category or metadata and regenerate the report. See [personal context](references/personal-context.md).
@@ -54,7 +56,7 @@ For genuine ambiguity, supply `Other`, keep the merchant uncached, and retain ca
 
 ## 3. Retrieve statements through MCP and extract PDFs separately
 
-The agent reads the enclosing email and retrieves original PDF bytes through supported MCP attachment operations. If retrieval fails, use the provider's documented raw-message/MIME fallback where available. Never invent endpoints or automatically follow statement-download, sign-in, or payment links.
+The agent reads the enclosing email, including relevant inline/attached instruction images that may be absent from extracted text, and retrieves original PDF bytes through supported MCP attachment operations. Inspect image content with available local OCR/image tools; keep source interpretation with the agent. A missing attachment flag does not prove that no inline image exists. Follow [image instructions and web confirmation](references/email-and-extraction.md#instructions-contained-in-email-images) when instructions are incomplete; new credential interpretation and missing-input questions belong to `$setup`. If retrieval fails, use the provider's documented raw-message/MIME fallback where available. Never invent endpoints or automatically follow statement-download, sign-in, or payment links.
 
 Pass the retrieved local PDF to the separate extraction script:
 
@@ -63,6 +65,8 @@ Pass the retrieved local PDF to the separate extraction script:
 ```
 
 Unprotected PDFs need no password. Reuse only the verified credential for the confirmed scope. During automation, do not prompt, guess/derive passwords, try unrelated credentials, or install dependencies. The agent records inaccessible/encrypted/unreadable documents and precise nonsecret gaps in its private inventory, routes credential repair to `$setup`, and continues accessible sources. Never claim failed extraction succeeded.
+
+An unsuccessful decrypt or absent saved credential does not prove that new secrets are required. Describe the observed failure and route instruction review to `$setup`; that workflow must exhaustively evaluate applicable text/image instructions, official guidance, and existing authorized inputs before making a missing-secret determination.
 
 Read all pages and account/currency sections, or the actual inline statement table. Include every source occurrence: all movements, repayments, credits, fees, withdrawals, and both own-transfer legs. Preserve original-byte digest, page/row locations, and independently printed checks in the statement payload's coverage metadata. Never manufacture expected totals from extracted rows. Use the [ledger contract](references/ledger-contract.md). Interpret unfamiliar notation from actual source instructions; unexplained markers do not establish financing or other financial semantics. Preserve original descriptions and supply optional `display_description` / `display_note` metadata when the agent has source-backed display guidance.
 
@@ -77,7 +81,7 @@ For statement rows with cached merchants, omit `category` to let accounting appl
 <moneylens> list --data-dir <directory>
 ```
 
-The input may contain one statement or a list of account/currency sections. Accounting validates and saves each source independently, imports safe statements, and leaves incomplete/conflicting evidence for review. Inspect every outcome; one invalid source must not block independent valid ones. Import does not pull data or generate a report.
+The input may contain one statement or a list of account/currency sections. Accounting validates and saves each account/currency section independently, imports reconciled sections, and leaves incomplete/conflicting sections for review. Gaps in another section of the same PDF do not block a healthy section; document completeness remains unverified and visible. Keep `complete`/`issues` specific to the selected section and preserve the full shared document manifest. Inspect every outcome; one invalid source must not block independent valid ones. Import does not pull data or generate a report.
 
 Match statement rows against saved provisional transactions and existing entries for the same account, currency, and period, including previously supplied mailbox sources. Confirmation requires a validated imported statement row and unique, consistent account/currency/amount/movement evidence. A reference cannot override conflicts; amount/date/merchant similarity alone is insufficient. Preserve user corrections and duplicate provenance. Never clear validation issues to force import.
 
@@ -87,7 +91,9 @@ For an available statement with a resolved account/currency and evidenced inclus
 
 Preserve original alerts as audit evidence; suppression is not proof of a row-level duplicate. Apply the same precedence to later-arriving alerts. Partial statements keep their gaps: alerts must not fill missing rows/pages or imply completeness. An unreadable PDF or unresolved identity cannot establish a period by guesswork.
 
-Every statement occurrence must be retained, proven duplicate-linked, or visibly held for review. Show **Completeness not verified** for missing pages, sections, rows, independent checks, or report visibility. All statements, including imported ones, must meet the current source-evidence checks.
+Apply this rule silently. Do not show counts of statement-covered alerts or routine explanations that they were excluded/not counted again in progress updates, final summaries, report metrics, or Review. Those are expected bookkeeping outcomes, not user-facing gaps or achievements. Keep the audit records internally and disclose them only if the user explicitly requests an audit. Summarize effective confirmed/provisional transactions, meaningful changes, and genuine unresolved issues instead; newly retrieved covered alerts alone do not warrant a notification.
+
+Every statement occurrence must be retained, proven duplicate-linked, or visibly held for review. Show **Completeness not verified** for missing pages, sections, rows, independent checks, or report visibility. All account/currency sections, including imported ones, must meet their own source-evidence checks. Keep whole-document completeness separate from section eligibility; do not block a reconciled savings section because a deposit summary omits movement history or interest posting dates. Never invent missing counterpart withdrawals or convert cumulative interest into dated transactions.
 
 ## 6. Update the report from the included template
 
@@ -101,7 +107,7 @@ Date limits are agent-owned: pass `--from-date` / `--to-date` for the intended p
 
 Use the included [report template](assets/report-template.html). Existing reports retain their UI; ordinary runs replace only the bounded JSON data block. Unsupported report templates are rejected; generate a report at a new path. There is no template upgrade command.
 
-Keep Spending, Incoming money, Transfers, All transactions, and Review distinct, with no Notes column. Show confirmed and provisional amounts separately. Refunds reduce spending; repayments do not. Exclude own-account transfers only with ownership evidence, retaining both legs. Keep currencies separate and all account movements visible. Keep checks/provenance in transaction details and unresolved financial/source issues in Review.
+Keep Spending, Incoming money, Transfers, All transactions, and Review distinct, with no Notes column. Show confirmed and provisional amounts separately. If no eligible confirmed records exist for a displayed measure in the current filters, use its eligible provisional amount in the report headline, supporting metrics, category breakdown, and daily chart, labeled **Provisional**. A confirmed zero is available and must not trigger this fallback. Do not promote provisional status or reintroduce blocked, duplicate, or statement-covered notifications. Refunds reduce spending; repayments do not. Exclude own-account transfers only with ownership evidence, retaining both legs. Keep currencies separate and all account movements visible. Keep checks/provenance in transaction details and unresolved financial/source issues in Review.
 
 The agent reports collection gaps separately from accounting results. Successful imports or report generation do not prove complete MCP pagination or statement completeness. Do not advance the agent's completed collection date after partial retrievals. Report-write failure leaves saved entries intact; regenerate without fetching them again.
 

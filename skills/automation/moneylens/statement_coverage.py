@@ -96,7 +96,7 @@ def duplicate_problem(record, row, all_records):
     return None
 
 
-def assess(record, all_records, include_sections=True):
+def _section_assessment(record, all_records):
     p = record['payload']; c = p.get('coverage'); gaps = []
     counts = Counter(retained=0, duplicate_linked=0, review=0)
     if not p['account_resolved']: gaps.append('Account identity unresolved')
@@ -113,23 +113,21 @@ def assess(record, all_records, include_sections=True):
             gaps.append('Original document digest unavailable')
         if not p['complete']:
             gaps.append('Extractor reports incomplete source reading')
-        expected_pages = set(range(1, c['page_count'] + 1))
-        read = {v['page'] for v in c['pages'] if v['status'] == 'read'}
-        if read != expected_pages:
-            gaps.append('Unread or unenumerated document pages: ' + ', '.join(map(str, sorted(expected_pages - read))))
-        related = [r for r in all_records if document_key(r['payload']) == document_key(p)]
-        for section in c['sections']:
-            peers = [r for r in related if r['payload'].get('coverage', {}).get('section_id') == section['id']]
-            if len(peers) != 1:
-                gaps.append('Missing or repeated account/currency section: ' + section['id'])
-            elif manifest_key(peers[0]['payload']) != manifest_key(p) or peers[0]['payload']['source'].get('sha256') != p['source'].get('sha256'):
-                gaps.append('Conflicting document manifest: ' + section['id'])
         section = next(s for s in c['sections'] if s['id'] == c['section_id'])
-        if include_sections:
-            for peer in related:
-                if peer['id'] != record['id'] and peer['payload'].get('coverage'):
-                    peer_result = assess(peer, all_records, include_sections=False)
-                    gaps.extend('Section ' + peer['payload']['coverage']['section_id'] + ': ' + gap for gap in peer_result['gaps'])
+        expected_pages = set(section['pages'])
+        read = {v['page'] for v in c['pages'] if v['status'] == 'read'}
+        if not expected_pages <= read:
+            gaps.append('Unread or unenumerated section pages: ' + ', '.join(map(str, sorted(expected_pages - read))))
+        related = [r for r in all_records if document_key(r['payload']) == document_key(p)]
+        peers = [r for r in related if r['payload'].get('coverage', {}).get('section_id') == section['id']]
+        if len(peers) != 1:
+            gaps.append('Missing or repeated account/currency section: ' + section['id'])
+        # Conflicting observations of the same bytes are an integrity failure,
+        # unlike a sibling section's missing movements or independent checks.
+        for peer in related:
+            q = peer['payload']
+            if q.get('coverage') and (manifest_key(q) != manifest_key(p) or q['source'].get('sha256') != p['source'].get('sha256')):
+                gaps.append('Conflicting document manifest: ' + q['coverage']['section_id'])
         mapped = p['transactions'] + p.get('review_rows', [])
         if any(r['reason'] == 'Source inventory row has no extraction mapping' for r in p.get('review_rows', [])):
             gaps.append('Enumerated source rows missing from extraction; preserved as visible review mappings')
@@ -164,6 +162,32 @@ def assess(record, all_records, include_sections=True):
             if actual[key] != stated[key]: gaps.append(key + ' does not reconcile against all source occurrences')
         if sum(counts.values()) != len(inventory):
             gaps.append('Source count is not the disjoint sum of retained, duplicate-linked and review mappings')
-    return {'status': 'Completeness not verified' if gaps else 'Source coverage complete',
+    return {'status': 'Section completeness not verified' if gaps else 'Section coverage complete',
             'verified': not gaps, 'gaps': list(dict.fromkeys(gaps)), 'source_row_count': len(section['rows']) if c else 0,
-            'mapped_counts': dict(counts), 'scope': 'Identifiable retrieved document and observed source evidence only'}
+            'mapped_counts': dict(counts), 'scope': 'Selected account/currency section and observed source evidence only'}
+
+
+def assess(record, all_records):
+    """Keep document completeness distinct from a section's import eligibility."""
+    section = _section_assessment(record, all_records)
+    p = record['payload']; manifest = p.get('coverage')
+    gaps = list(section['gaps'])
+    if manifest:
+        expected = set(range(1,manifest['page_count']+1))
+        read = {page['page'] for page in manifest['pages'] if page['status']=='read'}
+        if read != expected:
+            gaps.append('Unread or unenumerated document pages: ' + ', '.join(map(str,sorted(expected-read))))
+        related = [item for item in all_records if document_key(item['payload'])==document_key(p)]
+        for observed in manifest['sections']:
+            peers = [item for item in related if item['payload'].get('coverage',{}).get('section_id')==observed['id']]
+            if len(peers)!=1:
+                gaps.append('Missing or repeated account/currency section: '+observed['id'])
+            elif peers[0]['id']!=record['id']:
+                checked = _section_assessment(peers[0],all_records)
+                gaps.extend('Section '+observed['id']+': '+gap for gap in checked['gaps'])
+    gaps=list(dict.fromkeys(gaps))
+    return {'status':'Completeness not verified' if gaps else 'Source coverage complete',
+            'verified':not gaps,'gaps':gaps,'section':{'id':manifest['section_id'] if manifest else None,**section},
+            'section_count':len(manifest['sections']) if manifest else 0,
+            'source_row_count':section['source_row_count'],'mapped_counts':section['mapped_counts'],
+            'scope':'Identifiable retrieved document and observed source evidence only'}

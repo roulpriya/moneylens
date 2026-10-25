@@ -47,6 +47,11 @@ var unverifiedTransferOut = (r) => r.kind === "transfer_out" && !isTransfer(r);
 var eligible = (r) => !r.blocked && !r.suppressed && ["imported", "posted", "provisional", "draft"].includes(r.status);
 var confirmed = (r) => ["imported", "posted"].includes(r.status);
 var spending = (r) => !isTransfer(r) && spendKinds.has(r.kind);
+function preferredAmounts(rows, predicate) {
+  const available = rows.filter(r => eligible(r) && Number.isSafeInteger(r.amount_minor) && predicate(r));
+  const saved = available.filter(confirmed);
+  return { rows: saved.length ? saved : available.filter(r => !confirmed(r)), provisional: !saved.length && available.length > 0 };
+}
 function reviewReasons(r) {
   if (r.suppressed) return [];
   const reasons = [];
@@ -154,7 +159,7 @@ function showDetail(r, trigger) {
     fields.push(['Original descriptor', r.original_merchant]);
   if (r.metadata?.display_note) fields.push(['Source note', r.metadata.display_note]);
   if (needsReview(r)) fields.push(['Review reasons', reviewReasons(r).join(' · ')]);
-  fields.push(['Source completeness', r.coverage_status || statement?.coverage?.status || statement?.checks?.coverage?.status || 'Completeness not verified']);
+  fields.push(['Document completeness', r.coverage_status || statement?.coverage?.status || statement?.checks?.coverage?.status || 'Completeness not verified']);
   sources.forEach(source => {
     fields.push(["Source", sourceName(source)]);
     if (source.mailbox || source.mailbox_id) fields.push(["Mailbox", source.mailbox || source.mailbox_id]);
@@ -167,6 +172,10 @@ function showDetail(r, trigger) {
   if (statement) {
     fields.push(["Statement period", statement.period]);
     const coverage = statement.coverage || statement.checks?.coverage;
+    if (coverage?.section) {
+      fields.push(['Account section completeness', coverage.section.status]);
+      if (coverage.section.gaps?.length) fields.push(['Account section gaps', coverage.section.gaps.join(' · ')]);
+    }
     if (!coverage) fields.push(["Coverage evidence", "Source row coverage evidence is missing, so completeness cannot be verified."]);
     const gaps = [...new Set(coverage?.gaps || [])];
     if (gaps.length) fields.push(["Coverage gaps", gaps.join(" · ")]);
@@ -272,12 +281,12 @@ function update() {
   const category = new Map;
   included.filter((r) => spending(r) && r.amount_minor > 0).forEach((r) => category.set(r.category, (category.get(r.category) || 0n) + BigInt(r.amount_minor)));
   const gross = sum(included, (r) => spending(r) && r.amount_minor > 0), cats = [...category].sort((a, b) => a[1] > b[1] ? -1 : a[1] < b[1] ? 1 : 0);
-  const reportRows = filtered.filter(r => eligible(r) && confirmed(r));
+  const reportBasis = preferredAmounts(filtered, spending), reportRows = reportBasis.rows;
   if (screen === 'report') {
     const reportCategory = new Map();
     reportRows.filter(r=>spending(r) && BigInt(r.amount_minor)>0n).forEach(r=>reportCategory.set(r.category,(reportCategory.get(r.category)||0n)+BigInt(r.amount_minor)));
     const actualCats=[...reportCategory].sort((a,b)=>a[1]>b[1]?-1:a[1]<b[1]?1:a[0].localeCompare(b[0]));
-    renderCategoryVisuals(actualCats, sum(reportRows,r=>spending(r)&&BigInt(r.amount_minor)>0n), fmt);
+    renderCategoryVisuals(actualCats, sum(reportRows,r=>spending(r)&&BigInt(r.amount_minor)>0n), fmt, reportBasis.provisional);
   } else renderCategoryVisuals(cats, gross, fmt);
   renderActuals(filtered, fmt);
   renderDaily(filtered, fmt);
@@ -425,7 +434,7 @@ function selectCategory(labels) {
   closeDetail();
   update();
 }
-function renderCategoryVisuals(cats, gross, fmt) {
+function renderCategoryVisuals(cats, gross, fmt, provisional = false) {
   const allCategories = [...new Set(data.rows.map(r=>r.category))].sort();
   const usedColors = new Set();
   const color = label => {
@@ -442,8 +451,9 @@ function renderCategoryVisuals(cats, gross, fmt) {
   // Last stop closes the circle despite integer-ratio rounding.
   if(groups.length) segments.push(groups.at(-1).color+' '+position+'% 100%');
   $('category-chart').style.background = groups.length ? 'conic-gradient('+segments.join(', ')+')' : 'var(--bar-track)';
-  $('category-chart').setAttribute('aria-label', cats.length ? 'Purchases: '+fmt(gross)+'. '+cats.map(([label,value])=>label+' '+fmt(value)).join('; ') : 'No purchases for these filters');
+  $('category-chart').setAttribute('aria-label', cats.length ? (provisional?'Provisional purchases: ':'Purchases: ')+fmt(gross)+'. '+cats.map(([label,value])=>label+' '+fmt(value)).join('; ') : 'No purchases for these filters');
   $('category-total').textContent = fmt(gross);
+  $('category-caption').textContent = (provisional?'Provisional · ':'')+'before refunds';
   $('categories').replaceChildren(...groups.map(g=>{
     const button=node('button',undefined,'category-choice'),swatch=node('span',undefined,'category-swatch');
     button.type='button';swatch.style.background=g.color;
@@ -458,22 +468,26 @@ function renderCategoryVisuals(cats, gross, fmt) {
 
 // Actuals are computed in integer minor units, independently of transaction subviews.
 function renderActuals(rows,fmt) {
-  const confirmedRows=rows.filter(r=>eligible(r)&&confirmed(r));
-  const expenses=confirmedRows.filter(spending);
+  const basis=preferredAmounts(rows,spending),incomeBasis=preferredAmounts(rows,isEarning);
+  const expenses=basis.rows;
   const purchases=sum(expenses,r=>BigInt(r.amount_minor)>0n),refunds=-sum(expenses,r=>BigInt(r.amount_minor)<0n);
-  const incoming=-sum(confirmedRows.filter(isEarning)),net=purchases-refunds;
-  const values=[['Period',$('month').value?prettyMonth($('month').value):[$('from').value,$('to').value].filter(Boolean).map(prettyDate).join(' – ')||'Selected records'],['Money in',fmt(incoming)],['Purchases',fmt(purchases)],['Refunds',fmt(refunds)],['Net spend',fmt(net)],['Provisional net',fmt(sum(rows,r=>eligible(r)&&!confirmed(r)&&spending(r)))]];
+  const incoming=-sum(incomeBasis.rows),net=purchases-refunds;
+  const pendingRows=rows.filter(r=>eligible(r)&&!confirmed(r)&&spending(r)),pending=sum(pendingRows);
+  const label=(name,provisional=basis.provisional)=>provisional?'Provisional '+name[0].toLowerCase()+name.slice(1):name;
+  const values=[['Period',$('month').value?prettyMonth($('month').value):[$('from').value,$('to').value].filter(Boolean).map(prettyDate).join(' – ')||'Selected records'],[label('Money in',incomeBasis.provisional),fmt(incoming)],[label('Purchases'),fmt(purchases)],[label('Refunds'),fmt(refunds)],[label('Net spend'),fmt(net)]];
+  if(!basis.provisional)values.push(['Provisional net',fmt(pending)]);
   $('actuals-summary').replaceChildren(...values.map(([label,value])=>{const tr=node('tr');tr.append(node('th',label),node('td',value,'num'));return tr;}));
+  $('hero-label').textContent=basis.provisional?'Provisional net spend':expenses.length?'Confirmed net spend':'Net spend';
   $('hero-total').textContent=fmt(net);
-  $('hero-caption').textContent=expenses.length+' transaction'+(expenses.length===1?'':'s');
-  const pending=sum(rows,r=>eligible(r)&&!confirmed(r)&&spending(r));
-  $('hero-provisional').hidden=pending===0n;
-  $('hero-provisional').textContent=pending!==0n?'Provisional net '+fmt(pending):'';
+  $('hero-caption').textContent=expenses.length+(basis.provisional?' provisional':'')+' transaction'+(expenses.length===1?'':'s');
+  $('hero-provisional').hidden=basis.provisional||!pendingRows.length;
+  $('hero-provisional').textContent=!basis.provisional&&pendingRows.length?'Provisional net '+fmt(pending):'';
   const actualCard=(label,value,hint)=>{const e=node('div',undefined,'hero-card');e.append(node('span',label,'label'),node('strong',value,'value'));if(hint)e.append(node('span',hint,'muted'));return e;};
   const {start,end}=observedPeriod(rows);
   const days=start&&end&&start<=end?Math.floor((Date.parse(end+'T00:00:00Z')-Date.parse(start+'T00:00:00Z'))/86400000)+1:0;
-  $('hero-metrics').replaceChildren(actualCard('Money in',fmt(incoming),'Excludes refunds, repayments and own transfers'),actualCard('Net cash flow',fmt(incoming-net),''),actualCard('Daily average',fmt(days?net/BigInt(days):0n),days?'Over '+days+' observed day'+(days===1?'':'s'):''));
-  $('actuals-note').textContent='Confirmed records only. Money in is not necessarily income; it excludes refunds, repayments and own transfers.';
+  $('hero-metrics').replaceChildren(actualCard(label('Money in',incomeBasis.provisional),fmt(incoming),'Excludes refunds, repayments and own transfers'),actualCard(label('Net cash flow',basis.provisional||incomeBasis.provisional),fmt(incoming-net),''),actualCard(label('Daily average'),fmt(days?net/BigInt(days):0n),days?'Over '+days+' observed day'+(days===1?'':'s'):''));
+  $('actuals-note').textContent=(basis.provisional?'Provisional spending shown because no confirmed spending is available for this selection.':'Confirmed spending shown when available.')+(incomeBasis.provisional?' Money in is provisional because no confirmed money in is available.':'')+' Money in is not necessarily income; it excludes refunds, repayments and own transfers.';
+  $('expenses-title').textContent=basis.provisional?'Provisional expenses by category':'Expenses by category';
   const categories=new Map();
   expenses.forEach(r=>{const v=categories.get(r.category)||[0n,0n];v[0]+=BigInt(r.amount_minor);if(BigInt(r.amount_minor)>0n)v[1]+=BigInt(r.amount_minor);categories.set(r.category,v);});
   $('actual-expenses').replaceChildren(...[...categories].sort((a,b)=>a[1][0]>b[1][0]?-1:a[1][0]<b[1][0]?1:a[0].localeCompare(b[0])).map(([label,[value,gross]])=>{
@@ -515,30 +529,32 @@ function renderCategoryChips(rows) {
     b.addEventListener('click',()=>{categorySelection=label==='All'?null:[label];page=0;closeDetail();update();});return b;
   }));
 }
-// Chart values use the same confirmed eligibility rules as actuals; no fabricated days or projections.
+// Chart values use the same confirmed-first selection as actuals.
 function renderDaily(rows,fmt) {
+  const basis=preferredAmounts(rows,spending),state=basis.provisional?'provisional':'confirmed';
   const {start,end}=observedPeriod(rows);
   const amounts=new Map();
-  rows.filter(r=>eligible(r)&&confirmed(r)&&spending(r)&&BigInt(r.amount_minor)>0n).forEach(r=>amounts.set(r.date,(amounts.get(r.date)||0n)+BigInt(r.amount_minor)));
+  basis.rows.filter(r=>BigInt(r.amount_minor)>0n).forEach(r=>amounts.set(r.date,(amounts.get(r.date)||0n)+BigInt(r.amount_minor)));
   const days=[];
   if(start&&end&&start<=end) for(let t=Date.parse(start+'T00:00:00Z');t<=Date.parse(end+'T00:00:00Z')&&days.length<3660;t+=86400000){
     const date=new Date(t).toISOString().slice(0,10);days.push({date,value:amounts.get(date)||0n});
   }
   const total=days.reduce((v,d)=>v+d.value,0n),max=days.reduce((v,d)=>d.value>v?d.value:v,0n),average=days.length?total/BigInt(days.length):0n;
   const peak=days.find(d=>d.value===max&&max>0n);
-  $('daily-average').textContent='Average '+fmt(average)+' / day';
-  $('daily-peak').textContent=peak?'Largest day · '+prettyDate(peak.date)+' · '+fmt(peak.value):'No confirmed purchases for this selection';
+  $('daily-average').textContent=(basis.provisional?'Provisional average ':'Average ')+fmt(average)+' / day';
+  $('daily-peak').textContent=peak?(basis.provisional?'Largest provisional day · ':'Largest day · ')+prettyDate(peak.date)+' · '+fmt(peak.value):'No '+state+' purchases for this selection';
+  $('daily-chart').setAttribute('aria-label','Daily '+state+' purchases');
   $('daily-chart').replaceChildren(...days.map(d=>{
     const b=node('button',undefined,'daily-bar'+(d===peak?' peak':''));b.type='button';
     b.style.height=(max>0n?Math.max(1,Number(d.value*10000n/max)/100):1)+'%';
-    const tip=prettyDate(d.date)+': '+fmt(d.value)+' confirmed purchases';b.title=tip;b.setAttribute('aria-label',tip);
+    const tip=prettyDate(d.date)+': '+fmt(d.value)+' '+state+' purchases';b.title=tip;b.setAttribute('aria-label',tip);
     b.addEventListener('click',()=>{$('daily-peak').textContent=tip;});return b;
   }));
   $('daily-labels').replaceChildren(...[...new Set([start,end].filter(Boolean))].map(d=>node('span',prettyDate(d))));
   const weekend=days.reduce((v,d)=>[0,6].includes(new Date(d.date+'T00:00:00Z').getUTCDay())?v+d.value:v,0n);
   const fact=(label,value)=>{const n=node('div');n.append(node('span',label,'muted'),node('strong',value));return n;};
   $('daily-facts').replaceChildren(fact('Days observed',String(days.length)),fact('Days without recorded purchases',String(days.filter(d=>d.value===0n).length)),fact('Weekend share',total>0n?(Number(weekend*1000n/total)/10).toFixed(1)+'%':'—'));
-  $('daily-note').textContent='Missing sources can leave gaps; an empty day does not establish no spending.';
+  $('daily-note').textContent=(basis.provisional?'Provisional purchases shown because no confirmed spending is available. ':'')+'Missing sources can leave gaps; an empty day does not establish no spending.';
 }
 
 function observedPeriod(rows) {

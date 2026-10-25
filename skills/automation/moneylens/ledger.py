@@ -234,8 +234,8 @@ def assessment(record, all_records):
         if overlaps:
             issues.append("Potential cross-statement overlap at zero-based rows: " + ",".join(map(str, overlaps)))
     financial_review_resolved = not issues
-    if record['status'] in {'draft','imported'} and not coverage['verified']:
-        issues.extend('Completeness not verified: ' + gap for gap in coverage['gaps'])
+    if record['status'] in {'draft','imported'} and not coverage['section']['verified']:
+        issues.extend('Section completeness not verified: ' + gap for gap in coverage['section']['gaps'])
     return {"issues": list(dict.fromkeys(issues)), "coverage": coverage,
             "financial_review_resolved": financial_review_resolved, "passed_checks": passed,
             "unavailable_checks": sorted(CHECKS - set(checks))}

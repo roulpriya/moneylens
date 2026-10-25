@@ -45,6 +45,7 @@ class CompletenessTests(unittest.TestCase):
 
     def test_partial_pages_and_complete_boolean_do_not_prove_coverage(self):
         p=source_evidence(fixture());p['coverage']['page_count']=2
+        p['coverage']['sections'][0]['pages'].append(2)
         out=self.batch(p)['outcomes'][0];self.assertIn('pages: 2',str(out['coverage']['gaps']))
         p['coverage']['pages'].append({'page':2,'status':'partial','evidence':'Bottom table unreadable'})
         out=self.batch(p)['outcomes'][0];self.assertFalse(out['coverage']['verified'])
@@ -62,7 +63,7 @@ class CompletenessTests(unittest.TestCase):
                     for k in p['coverage']['sections'][0]['checks']:p['coverage']['sections'][0]['checks'][k]={'status':'unavailable','reason':'No independent proof'}
                 out=self.batch(p)['outcomes'][0];self.assertNotEqual(out['result'],'imported')
 
-    def test_all_combined_document_sections_are_required_then_reassessed(self):
+    def test_combined_document_sections_import_independently_and_coverage_is_reassessed(self):
         p=source_evidence(fixture());q=source_evidence(fixture(account_key='bank-a',account_type='bank_account'))
         q['checks']['closing_balance_minor']=-q['checks']['closing_balance_minor']+20000
         q=source_evidence(q);q['coverage']['sections'][0]['checks']['closing_balance_minor']['value']=4000
@@ -70,8 +71,11 @@ class CompletenessTests(unittest.TestCase):
         manifest=copy.deepcopy(p['coverage']);manifest['sections'].append(copy.deepcopy(q['coverage']['sections'][0]))
         p['coverage']=copy.deepcopy(manifest);q['coverage']=copy.deepcopy(manifest);q['coverage']['section_id']='bank-a-INR'
         out=self.batch(p)['outcomes'][0];self.assertIn('Missing or repeated',str(out['coverage']['gaps']))
+        self.assertEqual(out['result'],'imported');self.assertTrue(out['coverage']['section']['verified'])
+        self.assertFalse(out['coverage']['verified']);self.assertFalse(any(r['blocked'] for r in self.data()['rows']))
         result=self.batch(p,q)
-        self.assertEqual([r['result'] for r in result['outcomes']],['imported','imported'])
+        self.assertEqual([r['result'] for r in result['outcomes']],['already_imported','imported'])
+        self.assertTrue(all(r['coverage']['verified'] for r in result['outcomes']))
         self.assertTrue(all(r['coverage']['verified'] for r in self.checked()));self.assertEqual(len(self.data()['rows']),6)
 
     def test_unreadable_source_row_is_visible_review_with_separate_coverage_state(self):
@@ -172,7 +176,7 @@ class CompletenessTests(unittest.TestCase):
         self.assertTrue(all(r['excluded_from_spending'] for r in rows if not r['suppressed']))
         self.assertEqual(sum(r['suppressed'] for r in rows),1)
 
-    def test_combined_currency_section_omission_cannot_pass_the_first_section(self):
+    def test_combined_currency_section_omission_blocks_only_the_affected_section(self):
         p=source_evidence(fixture());q=source_evidence(fixture(currency='USD'))
         q['source']=copy.deepcopy(p['source'])
         manifest=copy.deepcopy(p['coverage']);manifest['sections']+=q['coverage']['sections']
@@ -180,7 +184,10 @@ class CompletenessTests(unittest.TestCase):
         q['transactions'].pop() # original independent inventory is preserved
         self.batch(p,q)
         checked=self.checked();self.assertTrue(all(not r['coverage']['verified'] for r in checked))
-        self.assertTrue(all(r['status']=='draft' for r in records(self.db)))
+        self.assertEqual({r['payload']['currency']:r['status'] for r in records(self.db)}, {'INR':'imported','USD':'draft'})
+        self.assertTrue(next(r for r in checked if r['coverage']['section']['id']=='test-card-a-INR')['coverage']['section']['verified'])
+        self.assertTrue(all(not r['blocked'] for r in self.data()['rows'] if r['currency']=='INR'))
+        self.assertTrue(all(r['blocked'] for r in self.data()['rows'] if r['currency']=='USD'))
         self.assertEqual(len(self.data()['rows']),6)
 
     def test_unknown_amount_does_not_turn_into_zero_for_independent_checks(self):
@@ -201,3 +208,68 @@ class CompletenessTests(unittest.TestCase):
         conflict['transactions'][0]['duplicate_of']={'statement':sid,'index':0,'evidence':'Same amount'}
         out=self.batch(conflict)['outcomes'][0];self.assertEqual(out['result'],'staged');self.assertIn('currency conflicts',str(out['issues']))
         self.assertEqual(len(self.data()['rows']),12)
+
+
+    def savings_and_summary(self):
+        savings=fixture('combined-summary',account_key='bank-a',account_type='bank_account',account_label='Synthetic savings')
+        savings['transactions']=[{'date':'2026-09-08','merchant':'Observed sweep credit' if i==0 else 'Savings movement '+str(i),
+            'amount_minor':-5000 if i==0 else 100,'kind':'credit' if i==0 else 'debit',
+            'category':'Agent category','page':1,'row':str(i+1)} for i in range(44)]
+        savings['checks']={'expected_transaction_count':44,'expected_debits_minor':4300,'expected_credits_minor':5000,
+                           'opening_balance_minor':10000,'closing_balance_minor':10700}
+        savings=source_evidence(savings)
+        summary=fixture('combined-summary',account_key='bank-b',account_type='bank_account',account_label='Deposit summary',
+            transactions=[],checks={},issues=['Individual deposit withdrawals, exact interest dates, and movement reconciliation evidence are absent'])
+        summary=source_evidence(summary)
+        summary['source']=copy.deepcopy(savings['source'])
+        summary['coverage']['sections'][0]['pages']=[2]
+        manifest=copy.deepcopy(savings['coverage']);manifest['page_count']=2
+        manifest['pages'].append({'page':2,'status':'read','evidence':'Read summary balances and cumulative interest; no movement table printed'})
+        manifest['sections'].append(copy.deepcopy(summary['coverage']['sections'][0]))
+        for payload,section in ((savings,'bank-a-INR'),(summary,'bank-b-INR')):
+            payload['coverage']=copy.deepcopy(manifest);payload['coverage']['section_id']=section
+        return savings,summary
+
+    def test_44_reconciled_savings_rows_import_despite_unreconcilable_summary_section(self):
+        savings,summary=self.savings_and_summary()
+        result=self.batch(savings,summary)
+        self.assertEqual([r['result'] for r in result['outcomes']],['imported','staged'])
+        checked={r['coverage']['section']['id']:r for r in self.checked()}
+        healthy=checked['bank-a-INR'];gap=checked['bank-b-INR']
+        self.assertEqual(healthy['issues'],[]);self.assertTrue(healthy['financial_review_resolved'])
+        self.assertTrue(healthy['coverage']['section']['verified']);self.assertFalse(healthy['coverage']['verified'])
+        self.assertEqual(healthy['coverage']['section']['source_row_count'],44)
+        self.assertEqual(len(healthy['passed_checks']),4)
+        self.assertFalse(gap['coverage']['section']['verified'])
+        report=self.data();self.assertEqual(len(report['rows']),44)
+        self.assertTrue(all(r['status']=='imported' and not r['blocked'] for r in report['rows']))
+        self.assertTrue(any('Individual deposit withdrawals' in item['reason'] for item in report['review_items']))
+        self.assertFalse(any(item['account']=='Synthetic savings' for item in report['review_items']))
+        self.assertTrue(any(item['account']=='Combined document' for item in report['review_items']))
+        self.assertEqual(next(r for r in records(self.db) if r['payload']['account_key']=='bank-b')['payload']['transactions'],[])
+
+    def test_own_section_omission_still_blocks_savings_even_with_a_valid_balance(self):
+        savings,summary=self.savings_and_summary();savings['transactions'].pop()
+        result=self.batch(savings,summary)
+        self.assertEqual(result['outcomes'][0]['result'],'staged')
+        self.assertFalse(result['outcomes'][0]['coverage']['section']['verified'])
+        self.assertTrue(all(r['blocked'] for r in self.data()['rows']))
+        self.assertEqual(len(self.data()['rows']),44)
+
+    def test_unread_sibling_page_is_a_document_gap_without_blocking_read_savings_pages(self):
+        savings,summary=self.savings_and_summary()
+        savings['coverage']['pages'][1].update(status='unreadable',evidence='Summary page could not be read')
+        result=self.batch(savings)['outcomes'][0]
+        self.assertEqual(result['result'],'imported')
+        self.assertTrue(result['coverage']['section']['verified']);self.assertFalse(result['coverage']['verified'])
+        self.assertIn('document pages: 2',str(result['coverage']['gaps']))
+        self.assertTrue(all(not r['blocked'] for r in self.data()['rows']))
+
+    def test_conflicting_document_manifests_remain_an_integrity_block(self):
+        savings,summary=self.savings_and_summary();self.batch(savings)
+        summary['coverage']['sections'][1]['evidence']='A conflicting observation of the same document'
+        self.batch(summary)
+        healthy=next(r for r in self.checked() if r['coverage']['section']['id']=='bank-a-INR')
+        self.assertFalse(healthy['coverage']['section']['verified'])
+        self.assertIn('Conflicting document manifest',str(healthy['issues']))
+        self.assertTrue(all(r['blocked'] for r in self.data()['rows']))
