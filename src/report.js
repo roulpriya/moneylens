@@ -2,6 +2,38 @@ import { initializeReportDesign } from './report-design.js';
 'use strict';
 var data = JSON.parse(document.getElementById("data").textContent);
 var $ = (id) => document.getElementById(id);
+let activeChartBar = null;
+function hideChartTooltip(bar) {
+  if (bar && activeChartBar !== bar) return;
+  activeChartBar?.removeAttribute('aria-describedby');
+  activeChartBar = null;
+  $('chart-tooltip').hidden = true;
+}
+function chartTooltip(bar, text, focusable = false) {
+  bar.setAttribute('aria-label', text);
+  if (focusable) { bar.tabIndex = 0; bar.setAttribute('role', 'img'); }
+  const show = () => {
+    hideChartTooltip();
+    activeChartBar = bar;
+    const tooltip = $('chart-tooltip');
+    tooltip.textContent = text;
+    tooltip.hidden = false;
+    bar.setAttribute('aria-describedby', 'chart-tooltip');
+    const anchor = bar.getBoundingClientRect(), hint = tooltip.getBoundingClientRect();
+    const width = globalThis.innerWidth || document.documentElement.clientWidth;
+    const height = globalThis.innerHeight || document.documentElement.clientHeight;
+    tooltip.style.left = Math.max(8, Math.min(anchor.left + anchor.width / 2 - hint.width / 2, width - hint.width - 8)) + 'px';
+    const above = anchor.top - hint.height - 10;
+    tooltip.style.top = Math.max(8, Math.min(above >= 8 ? above : anchor.bottom + 10, height - hint.height - 8)) + 'px';
+  };
+  bar.addEventListener('pointerenter', show);
+  bar.addEventListener('pointerleave', () => hideChartTooltip(bar));
+  bar.addEventListener('focus', show);
+  bar.addEventListener('blur', () => hideChartTooltip(bar));
+  bar.addEventListener('keydown', event => { if (event.key === 'Escape') hideChartTooltip(bar); });
+}
+globalThis.addEventListener?.('scroll', () => hideChartTooltip(), true);
+globalThis.addEventListener?.('resize', () => hideChartTooltip());
 function node(tag, text, cls) {
   const e = document.createElement(tag);
   if (text !== undefined)
@@ -42,11 +74,13 @@ function option(id, value, label) {
 }
 var spendKinds = new Set(["purchase", "debit", "fee", "interest", "cash_advance", "adjustment_debit", "refund", "adjustment_credit"]);
 // The decorated exclusion carries ownership proof. Movement labels alone do not.
-var isTransfer = (r) => r.excluded_from_spending === true;
+var isInvestment = (r) => ['investment', 'investment_withdrawal'].includes(r.accounting_treatment);
+var isTransfer = (r) => r.excluded_from_spending === true && !isInvestment(r);
 var unverifiedTransferOut = (r) => r.kind === "transfer_out" && !isTransfer(r);
 var eligible = (r) => !r.blocked && !r.suppressed && ["imported", "posted", "provisional", "draft"].includes(r.status);
 var confirmed = (r) => ["imported", "posted"].includes(r.status);
-var spending = (r) => !isTransfer(r) && spendKinds.has(r.kind);
+var spending = (r) => r.excluded_from_spending !== true && spendKinds.has(r.kind);
+var bankMovement = (r) => r.account_type === 'bank_account';
 function preferredAmounts(rows, predicate) {
   const available = rows.filter(r => eligible(r) && Number.isSafeInteger(r.amount_minor) && predicate(r));
   const saved = available.filter(confirmed);
@@ -67,7 +101,7 @@ function reviewReasons(r) {
   if ((r.blocked || r.status === "needs_review") && !reasons.length)
     reasons.push("Financial validation is unresolved; this row is excluded from totals.");
   if (spending(r) && r.amount_minor > 0 && r.category === "Other")
-    reasons.push("The merchant has not been assigned a spending category.");
+    reasons.push("Uncategorized transaction; the validated amount still counts in spending.");
   return [...new Set(reasons.map(reason => String(reason).trim()).filter(Boolean))];
 }
 var needsReview = (r) => reviewReasons(r).length > 0;
@@ -95,7 +129,7 @@ var accounts = new Map(data.rows.map((r) => [r.account_key, r.account]));
 accounts.forEach((label, key) => option("account", key, label));
 $("from").value = data.from;
 $("to").value = data.to;
-var views = ["all", "spending", "incoming", "transfers", "review"];
+var views = ["all", "spending", "incoming", "cashflow", "transfers", "review"];
 var sortKeys = ["date", "merchant", "category", "kind", "amount_minor", "account"];
 var view = "spending";
 var screen = "report";
@@ -148,11 +182,23 @@ function transactionSourceLink(r) {
   button.addEventListener("click", () => showDetail(r, button));
   return button;
 }
+function spendingTreatment(r) {
+  if (r.suppressed) return 'Duplicate-linked occurrence · Excluded from totals';
+  if (!eligible(r)) return 'Validation-blocked transaction · Excluded from totals';
+  if (isInvestment(r)) return 'Investment principal · Excluded from spending and ordinary income';
+  if (isTransfer(r)) return 'Own-account transfer · Excluded from spending';
+  if (unverifiedTransferOut(r)) return 'Outgoing movement · Transfer ownership needs review';
+  if (spending(r)) return 'Included in spending';
+  return ['payment','repayment'].includes(r.kind) ? 'Repayment · Excluded from spending' : 'Incoming money · Excluded from spending';
+}
 function showDetail(r, trigger) {
   detailTrigger = trigger;
   const statement = data.statements.find((s) => s.id === r.statement), sources = transactionSources(r), fmt = (n) => money(n, r.exponent, r.currency);
-  const fields = [["Date", r.date], ["Merchant", r.merchant], ["Category", r.category], ["Movement", r.kind.replaceAll("_", " ")], ["Amount", fmt(r.amount_minor)], ["Account", r.account], ["State", stateLabel(r)], ["Spending treatment", !eligible(r) ? "Excluded while financial checks are unresolved" : isTransfer(r) ? "Own-account transfer · Excluded" : unverifiedTransferOut(r) ? "Outgoing movement · Transfer ownership needs review" : spending(r) ? "Included in spending" : ["payment", "repayment"].includes(r.kind) ? "Repayment · Excluded from spending" : "Incoming money · Excluded from spending"], ["Payment type", r.channel ?? "Not provided"], ["Source record", r.statement || "Unavailable"], ["Source page / row", (r.page ?? "Unavailable") + " / " + (r.row ?? "Unavailable")]];
+  const fields = [["Date", r.date], ["Merchant", r.merchant], ["Category", r.category], ["Movement", r.kind.replaceAll("_", " ")], ["Amount", fmt(r.amount_minor)], ["Account", r.account], ["State", stateLabel(r)], ["Spending treatment", spendingTreatment(r)], ["Payment type", r.channel ?? "Not provided"], ["Source record", r.statement || "Unavailable"], ["Source page / row", (r.page ?? "Unavailable") + " / " + (r.row ?? "Unavailable")]];
   if (r.reference) fields.push(['Reference', r.reference]);
+  if (r.accounting_reason) fields.push(['Accounting treatment', r.accounting_reason]);
+  fields.push(['Cashflow treatment', !eligible(r) ? 'Excluded while validation is unresolved or the occurrence is duplicate-linked' : bankMovement(r) ? 'Included in bank cashflow' : 'Outside bank cashflow scope']);
+  if (eligible(r) && spending(r) && r.category === 'Other') fields.push(['Category review', 'Uncategorized; amount still counts']);
   if (r.duplicate_of || r.review_reason)
     fields.push(['Source row mapping', r.duplicate_of ? 'Duplicate linked to ' + r.duplicate_of.statement + ' / row ' + r.duplicate_of.index + ': ' + r.duplicate_of.evidence : r.review_reason]);
   if (r.original_merchant && r.original_merchant !== r.merchant)
@@ -209,8 +255,24 @@ function filteredRows() {
   const code = $("currency").value, month = $("month").value, account = $("account").value, state = $("state").value, query = $("search").value.trim().toLowerCase();
   return data.rows.filter((r) => (!$("channel").value || r.channel === $("channel").value) && (!code || r.currency === code || (!r.currency && ["review", "all"].includes(view))) && (!month || r.date.startsWith(month)) && (!account || r.account_key === account) && (!state ? (view === "all" || !r.suppressed) : state === "unresolved" ? r.blocked || r.status === "needs_review" : r.status === state) && (!$("from").value || r.date >= $("from").value) && (!$("to").value || r.date <= $("to").value) && (!query || [r.merchant, r.category, r.account, r.kind, r.reference || "", stateLabel(r), ...(view === "review" ? reviewReasons(r) : [])].join(" ").toLowerCase().includes(query)));
 }
-var isEarning = (r) => eligible(r) && !isTransfer(r) && BigInt(r.amount_minor) < 0n && !spendKinds.has(r.kind) && !["payment", "repayment"].includes(r.kind);
+var isEarning = (r) => eligible(r) && !isTransfer(r) && !r.excluded_from_income && BigInt(r.amount_minor) < 0n && !spendKinds.has(r.kind) && !["payment", "repayment"].includes(r.kind);
 var isCardPayment = (r) => eligible(r) && !isTransfer(r) && ["payment"].includes(r.kind) && BigInt(r.amount_minor) < 0n;
+function renderExclusions() {
+  const withinDates = r => (!$('from').value || r.date >= $('from').value) && (!$('to').value || r.date <= $('to').value) && (!$('month').value || r.date.startsWith($('month').value));
+  const scope = data.rows.filter(r => (!$('currency').value || r.currency === $('currency').value) && (!$('account').value || r.account_key === $('account').value) && (!$('channel').value || r.channel === $('channel').value));
+  const rows = scope.filter(withinDates);
+  const covered = (data.covered_alerts || []).filter(r => (!$('currency').value || r.currency === $('currency').value) && (!$('account').value || r.account_key === $('account').value) && withinDates(r));
+  const items = [
+    [rows.filter(r => r.blocked || r.status === 'needs_review').length, 'Validation-blocked transactions: excluded from all totals until source checks are resolved.'],
+    [rows.filter(r => eligible(r) && spending(r) && r.category === 'Other').length, 'Uncategorized transactions: validated amounts still count in spending.'],
+    [rows.filter(r => eligible(r) && (isTransfer(r) || ['payment','repayment'].includes(r.kind))).length, 'Transfers and repayments: excluded from spending; eligible bank movements remain in cashflow.'],
+    [rows.filter(r => eligible(r) && isInvestment(r)).length, 'Investment principal movements: excluded from spending and ordinary income; included in bank cashflow.'],
+    [rows.filter(r => r.suppressed).length, 'Duplicate-linked occurrences: evidence retained; excluded from totals.'],
+    [covered.length, 'Alerts covered by statements: excluded from financial rows; original evidence retained. Count uses account, currency and dates.'],
+    [scope.filter(r => r.date && !withinDates(r)).length, 'Transactions outside selected dates: retained in the ledger; excluded from this date selection.']
+  ];
+  $('accounting-exclusions')?.replaceChildren(node('li', 'Counts use account, currency, payment type and dates, independently of search, record state and transaction view.'), ...items.map(([count, explanation]) => node('li', count + ' · ' + explanation)));
+}
 function renderOverview(rows, fmt) {
   const inRows = rows.filter(isEarning), outRows = rows.filter((r) => eligible(r) && spending(r));
   const moneyIn = -sum(inRows), spent = sum(outRows), net = moneyIn - spent, cardPaid = -sum(rows.filter(isCardPayment));
@@ -240,7 +302,8 @@ function renderOverview(rows, fmt) {
     tr.append(node("td", prettyMonth(m)), node("td", fmt(i), "num"), node("td", fmt(o), "num"), node("td", (n > 0n ? "+" : "") + fmt(n), "num " + (n >= 0n ? "pos" : "neg")));
     const bars = node("td", undefined, "ov-bars"), b1 = node("div", undefined, "mini in"), b2 = node("div", undefined, "mini out");
     b1.style.width = pct(i); b2.style.width = pct(o);
-    b1.title = "Money in " + fmt(i); b2.title = "Spent " + fmt(o);
+    chartTooltip(b1, prettyMonth(m) + ' · Money in ' + fmt(i), true);
+    chartTooltip(b2, prettyMonth(m) + ' · Spent ' + fmt(o), true);
     bars.append(b1, b2);
     tr.append(bars);
     return tr;
@@ -252,20 +315,22 @@ function renderOverview(rows, fmt) {
   $("ov-note").textContent = "Money in excludes refunds, repayments and own transfers. Spending includes provisional records and deducts refunds.";
 }
 function update() {
+  hideChartTooltip();
   const filtered = filteredRows(), code = $("currency").value, exp = filtered[0]?.exponent ?? data.rows.find((r) => r.currency === code)?.exponent ?? data.statements.find((s)=>s.currency===code)?.exponent ?? null, fmt = (n) => money(n, exp, code || "");
-  const visible = filtered.filter((r) => view === "all" ? true : view === "review" ? needsReview(r) : eligible(r) && (view === "spending" ? spending(r) : view === "transfers" ? isTransfer(r) : !isTransfer(r) && r.amount_minor < 0));
+  const visible = filtered.filter((r) => view === "all" ? true : view === "review" ? needsReview(r) : eligible(r) && (view === "spending" ? spending(r) : view === "cashflow" ? bankMovement(r) : view === "transfers" ? isTransfer(r) : !isTransfer(r) && !isInvestment(r) && r.amount_minor < 0));
+  renderExclusions();
   renderOverview(filtered, fmt);
   const included = visible.filter(eligible), saved = included.filter(confirmed), provisional = included.filter((r) => !confirmed(r));
-  const title = { all: "All transactions", spending: "Spending overview", incoming: "Incoming money", transfers: "Own-account transfers", review: "Review" };
+  const title = { all: "All transactions", spending: "Spending overview", incoming: "Incoming money", cashflow: "Bank cashflow", transfers: "Own-account transfers", review: "Review" };
   $("view-title").textContent = title[view];
   $("table-title").className = ["transactions", "review"].includes(screen) ? "sr-only" : "";
-  $("table-title").textContent = { all: "All transactions", spending: "Transactions", incoming: "Transactions", transfers: "Transactions", review: "Transactions to review" }[view];
+  $("table-title").textContent = { all: "All transactions", spending: "Transactions", incoming: "Transactions", cashflow: "Bank movements", transfers: "Transactions", review: "Transactions to review" }[view];
   $("spending-breakdown").hidden = view !== "spending";
   $("review-panel").hidden = view !== "review";
   $("monthly-panel").hidden = view !== "spending";
-  $("report-title").textContent = {all:"All transactions",spending:"Spending report",incoming:"Incoming money",transfers:"Transfers",review:"Review"}[view];
+  $("report-title").textContent = {all:"All transactions",spending:"Spending report",incoming:"Incoming money",cashflow:"Bank cashflow",transfers:"Transfers",review:"Review"}[view];
   $("report-period").textContent = [$("month").value ? prettyMonth($("month").value) : [$("from").value, $("to").value].filter(Boolean).map(prettyDate).join(" – "), currencyLabel(code)].filter(Boolean).join(" · ");
-  const notes = { all: "", spending: "Includes provisional records; refunds deducted.", incoming: "Includes refunds and repayments; transfers excluded.", transfers: "Both account legs; excluded from spending.", review: "Blocked rows are excluded from totals; category decisions are included." };
+  const notes = { all: "", spending: "", incoming: "Includes refunds and repayments; own transfers and investment principal excluded.", cashflow: "All eligible bank movements, including Investment, Investment withdrawal, repayments and own transfers. Card entries are outside this scope. Principal is excluded from spending and ordinary income; posted interest stays separate.", transfers: "Both account legs; excluded from spending.", review: "Blocked rows are excluded from totals; category decisions are included." };
   $("view-note").textContent = notes[view];
   $("view-note").hidden = !notes[view];
   if (view === "spending")
@@ -274,6 +339,8 @@ function update() {
     cards([["Confirmed money in", fmt(-sum(saved)), ""], ["Provisional money in", fmt(-sum(provisional)), ""], ["Total money in", fmt(-sum(included)), ""], ["Transactions", String(visible.length), ""]]);
   else if (view === "transfers")
     cards([["Money out", fmt(sum(included, (r) => r.amount_minor > 0)), ""], ["Money in", fmt(-sum(included, (r) => r.amount_minor < 0)), ""], ["Provisional legs", String(provisional.length), ""], ["Transactions", String(visible.length), ""]]);
+  else if (view === 'cashflow')
+    cards([["Bank inflows", fmt(-sum(included, r => r.amount_minor < 0)), "Includes investment withdrawals"], ["Bank outflows", fmt(sum(included, r => r.amount_minor > 0)), "Includes investments and repayments"], ["Confirmed net cashflow", fmt(-sum(saved)), "Across selected bank accounts"], ["Provisional net cashflow", fmt(-sum(provisional)), ""]]);
   else if (view === 'all')
     cards([["Source occurrences", String(visible.length), ""], ["Repayments", String(visible.filter(r => ['payment','repayment'].includes(r.kind)).length), "Excluded from spending"], ["Review rows", String(visible.filter(needsReview).length), ""], ["Duplicate links", String(visible.filter(r => r.suppressed).length), "Excluded from totals"]]);
   else
@@ -317,7 +384,7 @@ function update() {
     const tr = node("tr");
     const amount = amountDisplay(r, fmt, 'td', 'num' + (r.amount_minor != null && BigInt(r.amount_minor) < 0n ? ' credit' : ''));
     const merchant = node("td", undefined, "merchant");
-    merchant.append(node("span", r.merchant), transactionSourceLink(r));
+    merchant.append(node("span", r.merchant));
     tr.append(node("td", prettyDate(r.date), "date"), merchant, node("td", r.category), node("td", r.kind.replaceAll("_", " "), "kind"), amount, node("td", r.account, "acct"));
     const td = node("td"), button = node("button", "View", "link");
     button.type = "button";
@@ -354,7 +421,6 @@ function update() {
   routeScreen();
   reportDesign?.refresh();
 }
-var coverageStatements = data.statements.filter((s) => !s.record_type || ["statement", "bank_statement"].includes(s.record_type));
 var localTime = (value) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", ...sync.timezone ? { timeZone: sync.timezone } : {} }).format(new Date(value));
 if (sync.merchant_categories?.length) {
   $("merchant-categories").hidden = false;
@@ -472,28 +538,45 @@ function renderActuals(rows,fmt) {
   const expenses=basis.rows;
   const purchases=sum(expenses,r=>BigInt(r.amount_minor)>0n),refunds=-sum(expenses,r=>BigInt(r.amount_minor)<0n);
   const incoming=-sum(incomeBasis.rows),net=purchases-refunds;
+  const bankBasis=preferredAmounts(rows,bankMovement);
+  const cashflows=[
+    ['Bank inflows',-sum(bankBasis.rows,r=>r.amount_minor<0)],
+    ['Bank outflows',sum(bankBasis.rows,r=>r.amount_minor>0)],
+    ['Investment',sum(bankBasis.rows,r=>isInvestment(r)&&r.amount_minor>0)],
+    ['Investment withdrawal',-sum(bankBasis.rows,r=>isInvestment(r)&&r.amount_minor<0)],
+    ['Net bank cashflow',-sum(bankBasis.rows)]
+  ];
+  $('cashflow-summary')?.replaceChildren(...cashflows.map(([name,value])=>{const tr=node('tr');tr.append(node('th',(bankBasis.provisional?'Provisional ':'')+name),node('td',fmt(value),'num'));return tr;}));
   const pendingRows=rows.filter(r=>eligible(r)&&!confirmed(r)&&spending(r)),pending=sum(pendingRows);
   const label=(name,provisional=basis.provisional)=>provisional?'Provisional '+name[0].toLowerCase()+name.slice(1):name;
   const values=[['Period',$('month').value?prettyMonth($('month').value):[$('from').value,$('to').value].filter(Boolean).map(prettyDate).join(' – ')||'Selected records'],[label('Money in',incomeBasis.provisional),fmt(incoming)],[label('Purchases'),fmt(purchases)],[label('Refunds'),fmt(refunds)],[label('Net spend'),fmt(net)]];
   if(!basis.provisional)values.push(['Provisional net',fmt(pending)]);
   $('actuals-summary').replaceChildren(...values.map(([label,value])=>{const tr=node('tr');tr.append(node('th',label),node('td',value,'num'));return tr;}));
+  $('hero-in-label').textContent='Money in';
+  $('hero-out-label').textContent='Money out';
+  $('hero-in-total').textContent=fmt(incoming);
+  $('hero-in-status').textContent=incomeBasis.provisional?'Provisional receipts':incomeBasis.rows.length?'Confirmed receipts':'No receipts recorded';
+  const pendingIncoming=rows.filter(r=>eligible(r)&&!confirmed(r)&&isEarning(r));
+  $('hero-in-provisional').hidden=incomeBasis.provisional||!pendingIncoming.length;
+  $('hero-in-provisional').textContent=!incomeBasis.provisional&&pendingIncoming.length?'Provisional money in '+fmt(-sum(pendingIncoming)):'';
   $('hero-label').textContent=basis.provisional?'Provisional net spend':expenses.length?'Confirmed net spend':'Net spend';
   $('hero-total').textContent=fmt(net);
-  $('hero-caption').textContent=expenses.length+(basis.provisional?' provisional':'')+' transaction'+(expenses.length===1?'':'s');
   $('hero-provisional').hidden=basis.provisional||!pendingRows.length;
   $('hero-provisional').textContent=!basis.provisional&&pendingRows.length?'Provisional net '+fmt(pending):'';
-  const actualCard=(label,value,hint)=>{const e=node('div',undefined,'hero-card');e.append(node('span',label,'label'),node('strong',value,'value'));if(hint)e.append(node('span',hint,'muted'));return e;};
+  const actualCard=(label,value)=>{const e=node('div',undefined,'hero-card');e.append(node('span',label,'label'),node('strong',value,'value'));return e;};
   const {start,end}=observedPeriod(rows);
   const days=start&&end&&start<=end?Math.floor((Date.parse(end+'T00:00:00Z')-Date.parse(start+'T00:00:00Z'))/86400000)+1:0;
-  $('hero-metrics').replaceChildren(actualCard(label('Money in',incomeBasis.provisional),fmt(incoming),'Excludes refunds, repayments and own transfers'),actualCard(label('Net cash flow',basis.provisional||incomeBasis.provisional),fmt(incoming-net),''),actualCard(label('Daily average'),fmt(days?net/BigInt(days):0n),days?'Over '+days+' observed day'+(days===1?'':'s'):''));
-  $('actuals-note').textContent=(basis.provisional?'Provisional spending shown because no confirmed spending is available for this selection.':'Confirmed spending shown when available.')+(incomeBasis.provisional?' Money in is provisional because no confirmed money in is available.':'')+' Money in is not necessarily income; it excludes refunds, repayments and own transfers.';
+  $('hero-metrics').replaceChildren(actualCard(label('Refunds'),fmt(refunds)),actualCard(label('Net bank cashflow',bankBasis.provisional),fmt(-sum(bankBasis.rows))),actualCard(label('Daily average'),fmt(days?net/BigInt(days):0n)));
+  $('actuals-note').textContent=(basis.provisional?'Provisional spending shown because no confirmed spending is available for this selection.':'Confirmed spending shown when available.')+(incomeBasis.provisional?' Money in is provisional because no confirmed money in is available.':'')+' Money in is not necessarily income; it excludes refunds, repayments, own transfers and investment principal. Posted interest remains separate.';
   $('expenses-title').textContent=basis.provisional?'Provisional expenses by category':'Expenses by category';
   const categories=new Map();
   expenses.forEach(r=>{const v=categories.get(r.category)||[0n,0n];v[0]+=BigInt(r.amount_minor);if(BigInt(r.amount_minor)>0n)v[1]+=BigInt(r.amount_minor);categories.set(r.category,v);});
   $('actual-expenses').replaceChildren(...[...categories].sort((a,b)=>a[1][0]>b[1][0]?-1:a[1][0]<b[1][0]?1:a[0].localeCompare(b[0])).map(([label,[value,gross]])=>{
     const tr=node('tr'),td=node('td'),bar=node('div',undefined,'actual-bar');
     const share=purchases>0n?Number(gross*10000n/purchases)/100:0;
-    bar.style.width=share+'%';bar.setAttribute('aria-hidden','true');td.append(node('span',share.toFixed(1)+'%','muted'),bar);
+    bar.style.width=share+'%';
+    chartTooltip(bar,label+' · '+(basis.provisional?'Provisional purchases ':'Purchases ')+fmt(gross)+' ('+share.toFixed(1)+'%) · Net spending '+fmt(value),true);
+    td.append(node('span',share.toFixed(1)+'%','muted'),bar);
     tr.append(node('td',label),node('td',fmt(value),'num'),td);return tr;
   }));
   if(!categories.size){const tr=node('tr'),td=node('td','No confirmed expenses in this selection.','muted');td.colSpan=3;tr.append(td);$('actual-expenses').append(tr);}
@@ -501,7 +584,7 @@ function renderActuals(rows,fmt) {
 }
 function routeScreen() {
   const report=screen==='report',transactions=screen==='transactions',review=screen==='review';
-  const visibility={'actuals-panel':report,'expenses-panel':report,'summary-panel':transactions,'spending-breakdown':report,'daily-panel':report,'review-panel':review&&sourceReviewItems.length>0,'transactions-panel':report||transactions||(review&&(reviewCount>sourceReviewItems.length||!sourceReviewItems.length)),'monthly-panel':transactions&&view==='spending','overview':transactions,'merchant-categories':review&&!!sync.merchant_categories?.length};
+  const visibility={'actuals-panel':report,'expenses-panel':report,'cashflow-panel':report,'summary-panel':transactions,'spending-breakdown':report,'daily-panel':report,'review-panel':review&&sourceReviewItems.length>0,'transactions-panel':report||transactions||(review&&(reviewCount>sourceReviewItems.length||!sourceReviewItems.length)),'monthly-panel':transactions&&view==='spending','overview':transactions,'merchant-categories':review&&!!sync.merchant_categories?.length};
   Object.entries(visibility).forEach(([id,visible])=>$(id).hidden=!visible);
   $('category-chips').hidden=review||view!=='spending';
   $('transaction-table').hidden=review;
@@ -513,11 +596,6 @@ function routeScreen() {
   views.forEach(name=>$('view-'+name).setAttribute('aria-pressed',String(name==='review'?review:transactions&&view===name)));
   const month=$('month').value || (data.from?.slice(0,7)===data.to?.slice(0,7)?data.from.slice(0,7):'');
   $('report-title').textContent=report?(month?prettyMonth(month)+' · Monthly report':'Monthly report'):{transactions:'Transactions',review:'Review'}[screen];
-  const lastDate=data.rows.filter(r=>eligible(r)&&(!data.from||r.date>=data.from)&&(!data.to||r.date<=data.to)&&(!$('month').value||r.date.startsWith($('month').value))).map(r=>r.date).sort().at(-1);
-  const generated=data.generated?.slice(0,10);
-  const incomplete=generated&&data.to&&data.to.slice(0,7)===generated.slice(0,7);
-  const statementCount=coverageStatements.filter(s=>(!data.to||s.period.slice(0,10)<=data.to)&&(!data.from||s.period.slice(-10)>=data.from)).length;
-  $('coverage-note').textContent=[incomplete?'Month in progress':null,!generated?'Preview':null,lastDate?'Latest counted transaction '+prettyDate(lastDate):'No counted transactions in this period',statementCount+(statementCount===1?' statement overlaps':' statements overlap')+' this period; coverage may be incomplete',sync.pending_sources?.length?sync.pending_sources.length+' source item'+(sync.pending_sources.length===1?'':'s')+' pending':null].filter(Boolean).join(' · ');
 }
 
 
@@ -547,14 +625,13 @@ function renderDaily(rows,fmt) {
   $('daily-chart').replaceChildren(...days.map(d=>{
     const b=node('button',undefined,'daily-bar'+(d===peak?' peak':''));b.type='button';
     b.style.height=(max>0n?Math.max(1,Number(d.value*10000n/max)/100):1)+'%';
-    const tip=prettyDate(d.date)+': '+fmt(d.value)+' '+state+' purchases';b.title=tip;b.setAttribute('aria-label',tip);
+    const tip=prettyDate(d.date)+': '+fmt(d.value)+' '+state+' purchases';chartTooltip(b,tip);
     b.addEventListener('click',()=>{$('daily-peak').textContent=tip;});return b;
   }));
   $('daily-labels').replaceChildren(...[...new Set([start,end].filter(Boolean))].map(d=>node('span',prettyDate(d))));
   const weekend=days.reduce((v,d)=>[0,6].includes(new Date(d.date+'T00:00:00Z').getUTCDay())?v+d.value:v,0n);
   const fact=(label,value)=>{const n=node('div');n.append(node('span',label,'muted'),node('strong',value));return n;};
   $('daily-facts').replaceChildren(fact('Days observed',String(days.length)),fact('Days without recorded purchases',String(days.filter(d=>d.value===0n).length)),fact('Weekend share',total>0n?(Number(weekend*1000n/total)/10).toFixed(1)+'%':'—'));
-  $('daily-note').textContent=(basis.provisional?'Provisional purchases shown because no confirmed spending is available. ':'')+'Missing sources can leave gaps; an empty day does not establish no spending.';
 }
 
 function observedPeriod(rows) {

@@ -1,9 +1,15 @@
 import {test,expect} from 'bun:test';
+import {readFileSync} from 'node:fs';
 import {normalizeDesign,COMPONENTS} from '../src/report-design.js';
 
-test('appearance defaults match the reference Paper design',()=>{
+test('new reports default to the website typography and palette',()=>{
  const d=normalizeDesign(null);
- expect(d.colors.background).toBe('#f4f5f7');expect(d.colors.header).toBe('#ffffff');
+ expect(d.theme).toBe('moneylens');
+ const shared=readFileSync(new URL('../src/brand.css',import.meta.url),'utf8');
+ for(const [key,token] of [['background','paper'],['cards','surface'],['text','ink'],['accent','accent'],['highlights','highlight']]) {
+  expect(shared).toContain(`--moneylens-${token}: ${d.colors[key]};`);
+ }
+ expect(d.colors.header).toBe(d.colors.background);
  expect(d.order).toEqual(COMPONENTS.map(c=>c[0]));
  expect(d.components).toEqual({});
 });
@@ -14,12 +20,12 @@ test('saved layout is deduplicated, unknown sections ignored, new sections retai
 });
 test('saved colours accept hex only and ignore financial or arbitrary fields',()=>{
  const d=normalizeDesign({version:1,account:'sensitive',colors:{background:'url(https://example.invalid)',accent:'#AA3300',chart:['red','#123456']},components:{transactions:'#334455',categories:'var(--anything)',unknown:'#123456'}});
- expect(d.colors.background).toBe('#f4f5f7');expect(d.colors.accent).toBe('#AA3300');
- expect(d.colors.chart[0]).toBe('#1e2a78');expect(d.colors.chart[1]).toBe('#123456');
+ expect(d.colors.background).toBe('#f7f8f2');expect(d.colors.accent).toBe('#AA3300');
+ expect(d.colors.chart[0]).toBe('#9daf7b');expect(d.colors.chart[1]).toBe('#123456');
  expect(d.components).toEqual({transactions:'#334455'});expect('account' in d).toBe(false);
 });
 test('unsupported settings reset safely and presets never share mutable colour arrays',()=>{
- expect(normalizeDesign({version:99,theme:'midnight'}).theme).toBe('paper');
+ expect(normalizeDesign({version:99,theme:'midnight'}).theme).toBe('moneylens');
  const d=normalizeDesign({version:1,theme:'midnight'});d.colors.chart[0]='#000000';
  expect(normalizeDesign({version:1,theme:'midnight'}).colors.chart[0]).toBe('#aac798');
 });
@@ -30,8 +36,14 @@ test('supported themes retain colours and section order',()=>{
  expect(d.order.slice(0,3)).toEqual(['expenses','actuals','categories']);expect(d.order).toContain('daily');expect(d.components.actuals).toBe('#abc123');
 });
 test('malformed preset names cannot access inherited object properties',()=>{
- expect(normalizeDesign({version:1,theme:'__proto__'}).theme).toBe('paper');
- expect(normalizeDesign({version:1,theme:'constructor'}).theme).toBe('paper');
+ expect(normalizeDesign({version:1,theme:'__proto__'}).theme).toBe('moneylens');
+ expect(normalizeDesign({version:1,theme:'constructor'}).theme).toBe('moneylens');
+});
+
+test('saved Paper preferences retain their theme, colours, and order',()=>{
+ const d=normalizeDesign({version:1,theme:'paper',colors:{accent:'#123456'},order:['daily','transactions']});
+ expect(d.theme).toBe('paper');expect(d.colors.background).toBe('#f4f5f7');
+ expect(d.colors.accent).toBe('#123456');expect(d.order.slice(0,2)).toEqual(['daily','transactions']);
 });
 
 

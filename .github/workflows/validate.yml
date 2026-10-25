@@ -33,6 +33,8 @@ jobs:
         run: python -m pip install -r skills/automation/scripts/requirements.txt
       - name: Test bundled report behavior
         run: npm run test:ui
+      - name: Verify compiled template matches its Bun source
+        run: npm run check:report
       - name: Verify committed HTML is reproducible
         run: git diff --exit-code -- skills/automation/assets/report-template.html
       - name: Run synthetic behavioral tests

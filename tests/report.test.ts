@@ -8,7 +8,8 @@ class Element {
   children: Element[] = [];
   className = ''; value = ''; hidden = true; colSpan = 0; disabled = false;
   style: Record<string,any> = {setProperty(name:string,value:string){this[name]=value;}}; attributes: Record<string,string> = {};
-  listeners: Record<string,() => void> = {};
+  listeners: Record<string,(event?: any) => void> = {};
+  clientWidth = 320; clientHeight = 800;
   private text = '';
   constructor(readonly id = '') {}
   set textContent(value: string) { this.text = value; this.children = []; }
@@ -19,8 +20,10 @@ class Element {
     this.children.push(...children);
   }
   replaceChildren(...children: Element[]) { this.children = []; this.text = ''; this.append(...children); }
-  addEventListener(name: string, callback: () => void) { this.listeners[name] = callback; }
+  addEventListener(name: string, callback: (event?: any) => void) { this.listeners[name] = callback; }
   setAttribute(name: string, value: string) { this.attributes[name] = value; }
+  removeAttribute(name: string) { delete this.attributes[name]; }
+  getBoundingClientRect() { return {left:20,top:100,right:40,bottom:120,width:20,height:20}; }
 }
 function render(extraRows: Record<string,unknown>[] = [], extraData: Record<string,unknown> = {}) {
   const elements = new Map([...html.matchAll(/\bid="([^"]+)"/g)].map(match => [match[1], new Element(match[1])]));
@@ -43,6 +46,33 @@ function render(extraRows: Record<string,unknown>[] = [], extraData: Record<stri
 const values = (element: Element) => element.children.map(child => child.children[1].textContent);
 const click = (elements: Map<string,Element>, id: string) => elements.get(id)!.listeners.click();
 const input = (elements: Map<string,Element>, id: string, value: string) => { const e=elements.get(id)!;e.value=value;e.listeners.input(); };
+
+test('daily chart amounts appear on hover and focus and dismiss on leave, Escape, or filtering', () => {
+  const e=render(), bar=e.get('daily-chart')!.children[0], tooltip=e.get('chart-tooltip')!;
+  expect(tooltip.hidden).toBe(true);
+  bar.listeners.pointerenter();
+  expect(tooltip.hidden).toBe(false);expect(tooltip.textContent).toBe(bar.attributes['aria-label']);
+  expect(tooltip.textContent).toContain('INR 140.00 confirmed purchases');
+  expect(bar.attributes['aria-describedby']).toBe('chart-tooltip');
+  bar.listeners.pointerleave();expect(tooltip.hidden).toBe(true);
+  expect(bar.attributes['aria-describedby']).toBeUndefined();
+  bar.listeners.focus();expect(tooltip.hidden).toBe(false);
+  bar.listeners.keydown({key:'Escape'});expect(tooltip.hidden).toBe(true);
+  bar.listeners.focus();input(e,'search','no matching rows');expect(tooltip.hidden).toBe(true);
+});
+
+test('category and monthly bar tooltips identify amounts without confusing purchases and net refunds', () => {
+  const e=render(), tooltip=e.get('chart-tooltip')!;
+  const groceries=e.get('actual-expenses')!.children.find(row=>row.children[0].textContent==='Groceries')!;
+  const categoryBar=groceries.children[2].children[1];
+  categoryBar.listeners.focus();
+  expect(tooltip.textContent).toContain('Purchases INR 120.00');
+  expect(tooltip.textContent).toContain('Net spending INR 110.00');
+  const monthly=e.get('ov-months')!.children[0].children[4].children;
+  monthly[0].listeners.pointerenter();expect(tooltip.textContent).toContain('Oct - 2026 · Money in INR 50.00');
+  monthly[1].listeners.focus();expect(tooltip.textContent).toContain('Oct - 2026 · Spent INR 130.00');
+  monthly[1].listeners.blur();expect(tooltip.hidden).toBe(true);
+});
 
 test('spending separates confirmed, provisional, refunds and excluded records', () => {
   const elements = render([
@@ -165,17 +195,15 @@ test('currencies never mix, refunds can exceed charges, and unsafe text remains 
   expect(values(elements.get('metrics')!)[0]).toBe('USD 9,999.99');
 });
 
-test('transaction source links expose provenance and checks without a separate Statements tab', () => {
+test('transaction details expose provenance and checks without inline source labels', () => {
   const elements=render([], {statements:[{id:'test-statement',account:'Test account',currency:'INR',period:'2026-09-01 – 2026-09-30',status:'imported',source:{mailbox:'box-a',message_id:'message-a',attachment_id:'attachment-a',filename:'test.pdf'},checks:{issues:[],passed_checks:['balance'],unavailable_checks:['count']}}]});
-  const source=elements.get('transactions')!.children[0].children[1].children[1];
-  expect(source.textContent).toBe('test.pdf · p. 1, row 1');
-  expect(source.attributes['aria-label']).toContain('View source for Synthetic merchant');
-  source.listeners.click();
+  const row=elements.get('transactions')!.children[0];
+  expect(row.children[1].children).toHaveLength(1);
+  row.children[6].children[0].listeners.click();
   const detail=elements.get('detail-fields')!.textContent;
   for(const value of ['test.pdf','box-a','message-a','attachment-a','2026-09-01','balance','count']) expect(detail).toContain(value);
   input(elements,'search','missing');
-  expect(elements.get('coverage-note')!.textContent).toContain('coverage may be incomplete');
-  expect(elements.get('coverage-note')!.textContent).not.toContain('completed scan');
+  expect(elements.has('coverage-note')).toBe(false);
   expect(elements.has('tab-statements')).toBe(false);
 });
 
@@ -185,6 +213,17 @@ test('release template contains no user data or external asset dependencies', ()
   expect(data.rows).toEqual([]);expect(data.statements).toEqual([]);expect(data.sync).toEqual({});
   expect(html).not.toMatch(/<(?:script|link|img)\b[^>]*(?:src|href)\s*=/i);
   expect(/id="(?:tab-statements|coverage-panel|sync-issues)"/.test(html)).toBe(false);
+});
+
+test('compiled report carries its website fonts and licenses without network dependencies', () => {
+  const css = html.match(/<style>\s*([\s\S]*?)<\/style>/)![1];
+  const urls = [...css.matchAll(/url\(\s*['"]?([^'"\s)]+)/g)].map(match => match[1]);
+  expect(urls).toHaveLength(3);
+  for (const url of urls) expect(url).toMatch(/^data:font\/woff2;base64,[a-z\d+/=]+$/i);
+  expect(css).toContain('DM Sans Variable');expect(css).toContain('Newsreader Variable');
+  expect(css).toContain('SIL OPEN FONT LICENSE');expect(css).not.toContain('@import');
+  expect(html).toContain('font-src data:');
+  expect(html).toContain('value="moneylens">MoneyLens</option>');
 });
 
 
@@ -220,7 +259,7 @@ test('daily chart uses confirmed purchases and observed days without inventing c
  expect(e.get('daily-chart')!.children).toHaveLength(22);
  expect(e.get('daily-average')!.textContent).toBe('Average INR 8.18 / day');
  expect(e.get('daily-peak')!.textContent).toContain('INR 140.00');
- expect(e.get('daily-note')!.textContent).toContain('does not establish no spending');
+ expect(e.has('daily-note')).toBe(false);
  input(e,'from','2026-10-10');input(e,'month','2026-10');
  expect(e.get('daily-chart')!.children).toHaveLength(13);
  expect(e.get('hero-total')!.textContent).toBe('INR 200.00');
@@ -259,7 +298,7 @@ test('real synthetic batch-to-ledger-to-HTML output exposes every source occurre
   expect(e.get('transactions')!.textContent).toContain('Unresolved');
   const completeness=new Set<string>();
   for(const row of e.get('transactions')!.children){
-    row.children[1].children[1].listeners.click();
+    row.children[6].children[0].listeners.click();
     completeness.add(e.get('detail-fields')!.textContent);
   }
   expect([...completeness].some(text=>text.includes('Completeness not verified'))).toBe(true);
@@ -377,7 +416,7 @@ test('Review uses list items with specific reasons and accessible amounts and de
  expect(item('Unreadable row').textContent).toContain('Page 2 row 4 is blurred');
  expect(item('Unreadable row').textContent).not.toContain("The source row's amount could not be read.");
  expect(item('Balance mismatch').textContent).toContain('Closing balance differs by INR 5.00');
- expect(item('Unknown category').textContent).toContain('not been assigned a spending category');
+  expect(item('Unknown category').textContent).toContain('validated amount still counts in spending');
  expect(item('Staged row').textContent).toContain('staged and has not been imported');
  expect(item('Outgoing review').textContent).toContain('receiving account has not been confirmed');
  expect(e.get('review-transactions')!.textContent).not.toContain('Duplicate review');
@@ -458,7 +497,7 @@ test('transaction details preserve missing evidence, coverage gaps and completed
   {...statement,id:'complete',coverage:{verified:true,status:'Source coverage complete',gaps:[]},financial_review_resolved:true}
  ]});
  const detail=(merchant:string)=>{
-   e.get('transactions')!.children.find(row=>row.children[1].children[0].textContent===merchant)!.children[1].children[1].listeners.click();
+   e.get('transactions')!.children.find(row=>row.children[1].children[0].textContent===merchant)!.children[6].children[0].listeners.click();
    return e.get('detail-fields')!.textContent;
  };
  expect(detail('unverified')).toContain('Source row coverage evidence is missing');
@@ -467,7 +506,7 @@ test('transaction details preserve missing evidence, coverage gaps and completed
  expect(detail('complete')).toContain('Resolved');
 });
 
-test('inline source retains all mailbox occurrences, direct email sources and unresolved rows safely',()=>{
+test('details retain all mailbox occurrences, direct email sources and unresolved rows safely',()=>{
  const unsafe='<img src=x onerror=alert(1)>';
  const source={mailbox:'box-a',message_id:'message-a',filename:unsafe};
  const e=render([
@@ -477,11 +516,11 @@ test('inline source retains all mailbox occurrences, direct email sources and un
  ],{statements:[{id:'multi',period:'Sep 2026',source,sources:[source,source,{mailbox:'box-b',message_id:'message-b',filename:'copy.pdf'}]}]});
  click(e,'view-all');
  const rows=e.get('transactions')!.children;
- const sourceLink=(merchant:string)=>rows.find(row=>row.children[1].children[0].textContent===merchant)!.children[1].children[1];
- expect(sourceLink('Duplicate source').textContent).toContain(unsafe+' · +1 source');
+ const sourceLink=(merchant:string)=>rows.find(row=>row.children[1].children[0].textContent===merchant)!.children[6].children[0];
+ expect(rows.find(row=>row.children[1].textContent==='Duplicate source')!.children[1].children).toHaveLength(1);
  sourceLink('Duplicate source').listeners.click();
+ expect(e.get('detail-fields')!.textContent).toContain(unsafe);
  expect(e.get('detail-fields')!.textContent).toContain('box-a');expect(e.get('detail-fields')!.textContent).toContain('box-b');
- expect(sourceLink('Alert source').textContent).toContain('Email message');
  sourceLink('Alert source').listeners.click();expect(e.get('detail-fields')!.textContent).toContain('box-c');
  click(e,'view-review');
  const review=e.get('review-transactions')!.children.find(item=>item.textContent.includes('Unresolved source'))!;
@@ -555,7 +594,7 @@ test('the report falls back to labeled provisional spending, categories, and dai
   ]);
   expect(e.get('hero-label')!.textContent).toBe('Provisional net spend');
   expect(e.get('hero-total')!.textContent).toBe('INR 120.00');
-  expect(e.get('hero-caption')!.textContent).toBe('3 provisional transactions');
+  expect(e.has('hero-caption')).toBe(false);
   expect(e.get('hero-provisional')!.hidden).toBe(true);
   expect(e.get('actuals-note')!.textContent).toContain('no confirmed spending is available');
   expect(e.get('expenses-title')!.textContent).toBe('Provisional expenses by category');
@@ -564,7 +603,8 @@ test('the report falls back to labeled provisional spending, categories, and dai
   expect(e.get('category-caption')!.textContent).toContain('Provisional');
   expect(e.get('daily-chart')!.attributes['aria-label']).toBe('Daily provisional purchases');
   expect(e.get('daily-chart')!.children[0].attributes['aria-label']).toContain('INR 145.00 provisional purchases');
-  expect(e.get('hero-metrics')!.children[0].textContent).toContain('Provisional money inINR 300.00');
+  expect(e.get('hero-in-status')!.textContent).toBe('Provisional receipts');
+  expect(e.get('hero-in-total')!.textContent).toBe('INR 300.00');
   click(e,'tab-transactions');
   expect(values(e.get('metrics')!)).toEqual(['INR 0.00','INR 120.00','INR 120.00','INR 25.00']);
 });
@@ -616,12 +656,38 @@ test('confirmed income does not hide provisional expenses and income fallback is
     {amount_minor:2500,status:'provisional'}]);
   expect(e.get('hero-label')!.textContent).toBe('Provisional net spend');
   expect(e.get('hero-total')!.textContent).toBe('INR 25.00');
-  expect(e.get('hero-metrics')!.children[0].children[0].textContent).toBe('Money in');
-  expect(e.get('hero-metrics')!.children[1].children[0].textContent).toBe('Provisional net cash flow');
+  expect(e.get('hero-in-label')!.textContent).toBe('Money in');
+  expect(e.get('hero-in-total')!.textContent).toBe('INR 100.00');
+  expect(e.get('hero-metrics')!.children[1].children[0].textContent).toBe('Net bank cashflow');
   const incoming=neutralRender([{amount_minor:1000},
     {amount_minor:-2000,kind:'credit',status:'provisional'}]);
   expect(incoming.get('hero-label')!.textContent).toBe('Confirmed net spend');
-  expect(incoming.get('hero-metrics')!.children[0].textContent).toContain('Provisional money inINR 20.00');
+  expect(incoming.get('hero-in-status')!.textContent).toBe('Provisional receipts');
+  expect(incoming.get('hero-in-total')!.textContent).toBe('INR 20.00');
+});
+
+test('the two headline totals retain independent pending amounts and follow the selected currency', () => {
+  const e=neutralRender([
+    {amount_minor:-10000,kind:'credit'},
+    {amount_minor:-2500,kind:'credit',status:'provisional'},
+    {amount_minor:4000},
+    {amount_minor:900,status:'provisional'},
+    {amount_minor:-20000,kind:'credit',currency:'USD'},
+  ]);
+  input(e,'currency','INR');
+  expect(e.get('hero-in-label')!.textContent).toBe('Money in');
+  expect(e.get('hero-out-label')!.textContent).toBe('Money out');
+  expect(e.get('hero-in-total')!.textContent).toBe('INR 100.00');
+  expect(e.get('hero-total')!.textContent).toBe('INR 40.00');
+  expect(e.get('hero-in-status')!.textContent).toBe('Confirmed receipts');
+  expect(e.get('hero-in-provisional')!.hidden).toBe(false);
+  expect(e.get('hero-in-provisional')!.textContent).toBe('Provisional money in INR 25.00');
+  expect(e.get('hero-provisional')!.textContent).toBe('Provisional net INR 9.00');
+  input(e,'currency','USD');
+  expect(e.get('hero-in-total')!.textContent).toBe('USD 200.00');
+  expect(e.get('hero-total')!.textContent).toBe('USD 0.00');
+  expect(e.get('hero-in-provisional')!.hidden).toBe(true);
+  expect(e.get('hero-provisional')!.hidden).toBe(true);
 });
 
 test('blocked and statement-covered rows cannot become provisional fallback amounts', () => {
@@ -647,9 +713,70 @@ test('a reconciled account section stays confirmed while sibling document gaps r
   });
   expect(e.get('hero-label')!.textContent).toBe('Confirmed net spend');
   expect(e.get('hero-total')!.textContent).toBe('INR 12.00');
-  e.get('transactions')!.children[0].children[1].children[1].listeners.click();
+  e.get('transactions')!.children[0].children[6].children[0].listeners.click();
   expect(e.get('detail-fields')!.textContent).toContain('Document completenessCompleteness not verified');
   expect(e.get('detail-fields')!.textContent).toContain('Account section completenessSection coverage complete');
   click(e,'view-review');
   expect(e.get('review-groups')!.textContent).toContain(documentGap);
+});
+
+test('44-row cashflow fixture preserves withdrawals, salary, interest, and repayments in the report', () => {
+  // Normalized synthetic report data keeps UI coverage independent of runtime changes.
+  const data=JSON.parse(readFileSync(new URL('./fixtures/report-investment-cashflow.json',import.meta.url),'utf8')),e=render([],data);
+  expect(data.rows).toHaveLength(44);
+  expect(e.get('hero-total')!.textContent).toBe('INR 29.00');
+  expect(e.get('hero-in-total')!.textContent).toBe('INR 2,001.25');
+  expect(e.get('hero-metrics')!.children.every(card=>card.children.length===2)).toBe(true);
+  expect(e.has('cashflow-note')).toBe(false);
+  expect(e.get('cashflow-summary')!.textContent).toContain('Investment withdrawalINR 1,100.00');
+  expect(e.get('cashflow-summary')!.textContent).toContain('InvestmentINR 500.00');
+  expect(e.get('cashflow-summary')!.textContent).toContain('Net bank cashflowINR 2,272.25');
+  click(e,'view-cashflow');input(e,'page-size','100');
+  expect(e.get('transactions')!.children).toHaveLength(44);
+  const withdrawals=e.get('transactions')!.children.filter(r=>r.children[1].textContent.includes('FD withdrawal'));
+  expect(withdrawals).toHaveLength(11);
+  expect(e.get('transactions')!.textContent).toContain('Salary');
+  expect(e.get('transactions')!.textContent).toContain('Posted interest');
+  expect(e.get('transactions')!.textContent).toContain('Card repayment');
+  expect(values(e.get('metrics')!)).toEqual(['INR 3,101.25','INR 829.00','INR 2,272.25','INR 0.00']);
+  withdrawals[0].children[6].children[0].listeners.click();
+  expect(e.get('detail-fields')!.textContent).toContain('Investment principal');
+  expect(e.get('detail-fields')!.textContent).toContain('observed-ref-');
+  expect(e.get('detail-fields')!.textContent).toContain('Section coverage complete');
+  expect(e.get('detail-fields')!.textContent).toContain('Balance snapshot only');
+  click(e,'view-incoming');
+  expect(values(e.get('metrics')!)[0]).toBe('INR 2,001.25');
+  expect(e.get('transactions')!.textContent).not.toContain('FD withdrawal');
+  click(e,'view-transfers');
+  expect(e.get('transactions')!.textContent).not.toContain('FD withdrawal');
+});
+
+test('bank cashflow excludes card entries and blocked duplicates while retaining repayments and principal', () => {
+  const bank={account_type:'bank_account'};
+  const e=neutralRender([
+    {...bank,merchant:'Salary',amount_minor:-100000,kind:'credit'},
+    {...bank,merchant:'Principal',amount_minor:-20000,kind:'credit',accounting_treatment:'investment_withdrawal',excluded_from_spending:true,excluded_from_income:true},
+    {...bank,merchant:'Bill repayment',amount_minor:30000,kind:'repayment'},
+    {...bank,merchant:'Other expense',amount_minor:1000,kind:'debit',category:'Other'},
+    {...bank,merchant:'Invalid',amount_minor:-900000,kind:'credit',blocked:true},
+    {...bank,merchant:'Duplicate',amount_minor:-900000,kind:'credit',suppressed:true},
+    {account_type:'credit_card',merchant:'Card purchase',amount_minor:8000},
+    {...bank,merchant:'Outside',amount_minor:1000,date:'2026-09-01'},
+  ],{covered_alerts:[{date:'2026-10-24',currency:'INR',account_key:'opaque'}]});
+  input(e,'from','2026-10-01');
+  expect(e.get('hero-metrics')!.children[1].textContent).toContain('INR 890.00');
+  const audit=e.get('accounting-exclusions')!.textContent;
+  expect(audit).toContain('1 · Validation-blocked transactions');
+  expect(audit).toContain('1 · Uncategorized transactions');
+  expect(audit).toContain('1 · Transfers and repayments');
+  expect(audit).toContain('1 · Investment principal movements');
+  expect(audit).toContain('1 · Duplicate-linked occurrences');
+  expect(audit).toContain('1 · Alerts covered by statements');
+  expect(audit).toContain('1 · Transactions outside selected dates');
+  click(e,'view-cashflow');
+  expect(e.get('transactions')!.children).toHaveLength(4);
+  expect(e.get('transactions')!.textContent).not.toContain('Card purchase');
+  expect(e.get('transactions')!.textContent).not.toContain('Invalid');
+  click(e,'view-spending');
+  expect(values(e.get('metrics')!)[0]).toBe('INR 90.00');
 });

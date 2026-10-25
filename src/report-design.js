@@ -2,20 +2,21 @@
 export const DESIGN_KEY = 'moneylens.report.appearance.v1';
 export const COMPONENTS = [
   ['actuals','actuals-panel','Monthly actuals'], ['summary','summary-panel','Summary'], ['categories','spending-breakdown','Category chart'], ['daily','daily-panel','Daily spend'], ['transactions','transactions-panel','Transactions'],
-  ['expenses','expenses-panel','Expenses'], ['review','review-panel','Source review'],
+  ['expenses','expenses-panel','Expenses'], ['cashflow','cashflow-panel','Cashflow'], ['review','review-panel','Source review'],
   ['monthly','monthly-panel','Monthly totals'],
   ['overview','overview','Overview'], ['merchants','merchant-categories','Merchant categories']
 ];
 const PRESETS = {
+  moneylens: {background:'#f7f8f2',cards:'#fffefa',text:'#283b33',accent:'#2d483b',header:'#f7f8f2',highlights:'#eaf0e0',chart:['#9daf7b','#c3d0a7','#78946b','#b9a47a','#91a69b','#b4acbd']},
   paper: {background:'#f4f5f7',cards:'#ffffff',text:'#111418',accent:'#2f4be0',header:'#ffffff',highlights:'#eef0f3',chart:['#1e2a78','#5264f2','#ed8936','#2b9d83','#a58ae8','#e9b930']},
   sage: {background:'#f4f6f1',cards:'#ffffff',text:'#233b2d',accent:'#405f44',header:'#10171b',highlights:'#e7eedf',chart:['#617e58','#c68257','#9990b8','#5c9a9b','#b89b42','#a4b2a1']},
   midnight: {background:'#17231d',cards:'#213128',text:'#f0f5ed',accent:'#b8d8a6',header:'#10171b',highlights:'#314c32',chart:['#aac798','#d7a782','#b9b1d6','#86b9ba','#d1bc79','#a4b2a1']}
 };
 const fields = ['background','cards','text','accent','header','highlights'];
 const validColor = value => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
-const fresh = (theme='paper') => ({version:1,theme,colors:{...PRESETS[theme],chart:[...PRESETS[theme].chart]},order:COMPONENTS.map(c=>c[0]),components:{}});
+const fresh = (theme='moneylens') => ({version:1,theme,colors:{...PRESETS[theme],chart:[...PRESETS[theme].chart]},order:COMPONENTS.map(c=>c[0]),components:{}});
 export function normalizeDesign(input) {
-  const base=fresh(Object.hasOwn(PRESETS,input?.theme)?input.theme:'paper');
+  const base=fresh(Object.hasOwn(PRESETS,input?.theme)?input.theme:'moneylens');
   if (!input || input.version!==1) return fresh();
   for (const key of fields) if (validColor(input.colors?.[key])) base.colors[key]=input.colors[key];
   if (Array.isArray(input.colors?.chart)) base.colors.chart=base.colors.chart.map((c,i)=>validColor(input.colors.chart[i])?input.colors.chart[i]:c);

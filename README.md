@@ -109,7 +109,11 @@ Run the skill in the project directory you opened. New installations default to 
 
 ## Report appearance
 
-Choose **Edit report** to move sections with the up/down controls and change the theme, section backgrounds, or chart colours. **Done** hides the controls; **Reset to default** restores the Sage report with Midnight header. Overall overview and monthly totals remain available in collapsed sections; Review remains its own tab.
+Money in and Money out appear side by side with equal size and emphasis. Money out is net spending after refunds. Confirmed/provisional evidence and pending amounts are shown independently for each side; refunds, net bank cashflow, and daily average appear below.
+
+Hover a daily, category, or monthly overview chart bar to see its amount and context. Keyboard focus shows the same tooltip; Escape dismisses it. Category tooltips distinguish purchase amounts from net spending after refunds.
+
+New reports use the website's MoneyLens styling: cream backgrounds, sage accents, DM Sans text, and bundled Newsreader type. Choose **Edit report** to move sections with the up/down controls and change the theme, section backgrounds, or chart colours. **Done** hides the controls; **Reset to default** restores the MoneyLens theme. Existing saved Paper, Sage, and Midnight preferences remain available. Overall overview and monthly totals remain available in collapsed sections; Review remains its own tab.
 
 Appearance settings contain only colours and component order and are saved in this browser's local storage. They survive reloads and report refreshes at the same path in that browser. A different browser or moved report may have separate settings. When storage is unavailable, the editor says that changes last only until reload. No transaction, credential, or ledger data is changed by these controls.
 
@@ -150,7 +154,9 @@ npm run build
 
 Use an installed Python 3.10+ executable for `<python>` (`python`, `python3` or `py -3`, as available). `<venv-python>` is `.venv/Scripts/python.exe` on Windows or `.venv/bin/python` on POSIX systems. Resolve paths locally and quote them using the current shell; activation is unnecessary. `npm test` prefers this local `.venv`; `MONEYLENS_TEST_PYTHON` can select another interpreter by absolute path.
 
-The build uses Bun to bundle `src/report.js` and `src/report.css` and inline them into `src/report.html`. It commits one offline artifact at `skills/automation/assets/report-template.html`, preserving the bounded JSON data markers used by daily updates. The distributable `dist/moneylens` uses an explicit file allowlist for the manifest, both skills and their maintained runtime files, README, and license. Unlisted files, retired helpers, runtime data, and build dependencies are excluded.
+The report source is `src/report.html`, `src/report.css`, and `src/report.js`, with shared website/report fonts and palette in `src/brand.css`. Font sources and their OFL notices live in `src/fonts`. Bun compiles the CSS and JavaScript and embeds them with the fonts and license notices into one offline artifact at `skills/automation/assets/report-template.html`. Edit the source and regenerate this compiled file; do not hand-edit the skill's HTML asset. The bounded JSON data markers remain the only daily-update boundary. Existing private reports retain their appearance on refresh; generate a new report at a new output path to use the new compiled template.
+
+With Bun installed, use `bun run build:report` to regenerate the skill template, `bun run check:report` to verify it matches its source without writing, or `bun run build` to compile and package the complete plugin. After `npm ci`, the corresponding `npm run` commands use the repository-pinned Bun executable. The distributable `dist/moneylens` uses an explicit file allowlist for the manifest, both skills and their maintained runtime files, README, and license. It ships the compiled template with embedded fonts; source CSS, font files, build dependencies, runtime data, and unlisted files are excluded. Installed workflows need Python but do not need Bun or a font service.
 
 Tests use synthetic records, temporary directories, and fake credential stores. PDF tests cover encrypted and unprotected documents without live email access or system credential services. CI is configured to run on macOS, Linux and Windows, test the Python interface and both report suites, exercise the built plugin, and verify the committed HTML asset.
 
