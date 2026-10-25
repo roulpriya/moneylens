@@ -23,12 +23,13 @@ function chartTooltip(bar, text, focusable = false) {
     const width = globalThis.innerWidth || document.documentElement.clientWidth;
     const height = globalThis.innerHeight || document.documentElement.clientHeight;
     tooltip.style.left = Math.max(8, Math.min(anchor.left + anchor.width / 2 - hint.width / 2, width - hint.width - 8)) + 'px';
-    const above = anchor.top - hint.height - 10;
-    tooltip.style.top = Math.max(8, Math.min(above >= 8 ? above : anchor.bottom + 10, height - hint.height - 8)) + 'px';
+    const above = anchor.top - hint.height - 12;
+    tooltip.style.top = Math.max(8, Math.min(above >= 8 ? above : anchor.bottom + 12, height - hint.height - 8)) + 'px';
   };
   bar.addEventListener('pointerenter', show);
   bar.addEventListener('pointerleave', () => hideChartTooltip(bar));
   bar.addEventListener('focus', show);
+  bar.addEventListener('click', show);
   bar.addEventListener('blur', () => hideChartTooltip(bar));
   bar.addEventListener('keydown', event => { if (event.key === 'Escape') hideChartTooltip(bar); });
 }
@@ -124,12 +125,16 @@ var currencies = [...new Set([...data.rows, ...data.statements].map((r) => r.cur
 currencies.forEach((c) => option("currency", c, currencyLabel(c)));
 if (!currencies.length)
   option("currency", "", "No transactions");
-[...new Set(data.rows.map((r) => r.date.slice(0, 7)))].sort().reverse().forEach((m) => option("month", m, prettyMonth(m)));
+var availableMonths=[...new Set(data.rows.map(r=>r.date.slice(0,7)).filter(m=>/^\d{4}-(0[1-9]|1[0-2])$/.test(m)))].sort();
+[...availableMonths].reverse().forEach(m=>option('month',m,prettyMonth(m)));
+var latestMonth=availableMonths.filter(m=>data.rows.some(r=>r.currency===$('currency').value&&r.date.startsWith(m))).at(-1)||'';
+$('month').value=latestMonth;
 var accounts = new Map(data.rows.map((r) => [r.account_key, r.account]));
 accounts.forEach((label, key) => option("account", key, label));
 $("from").value = data.from;
 $("to").value = data.to;
-var views = ["all", "spending", "incoming", "cashflow", "transfers", "review"];
+var categoryExpanded = false;
+var categoryColors = new Map();
 var sortKeys = ["date", "merchant", "category", "kind", "amount_minor", "account"];
 var view = "spending";
 var screen = "glance";
@@ -251,14 +256,16 @@ function cards(items) {
     return card;
   }));
 }
+function effectiveMonth() { return screen==='glance'?$('month').value:''; }
 function filteredRows() {
-  const code = $("currency").value, month = $("month").value, account = $("account").value, state = $("state").value, query = $("search").value.trim().toLowerCase();
-  return data.rows.filter((r) => (!$("channel").value || r.channel === $("channel").value) && (!code || r.currency === code || (!r.currency && ["review", "all"].includes(view))) && (!month || r.date.startsWith(month)) && (!account || r.account_key === account) && (!state ? (view === "all" || !r.suppressed) : state === "unresolved" ? r.blocked || r.status === "needs_review" : r.status === state) && (!$("from").value || r.date >= $("from").value) && (!$("to").value || r.date <= $("to").value) && (!query || [r.merchant, r.category, r.account, r.kind, r.reference || "", stateLabel(r), ...(view === "review" ? reviewReasons(r) : [])].join(" ").toLowerCase().includes(query)));
+  const glance=screen==='glance';
+  const code = $("currency").value, month = effectiveMonth(), account = $("account").value, state = glance?'':$("state").value, query = glance?'':$("search").value.trim().toLowerCase();
+  return data.rows.filter((r) => (!$("channel").value || r.channel === $("channel").value) && (!code || r.currency === code || (!r.currency && ["review", "all"].includes(view))) && (!month || r.date.startsWith(month)) && (!account || r.account_key === account) && (!state ? (view === "all" || !r.suppressed) : state === "unresolved" ? r.blocked || r.status === "needs_review" : r.status === state) && (glance || !$("from").value || r.date >= $("from").value) && (glance || !$("to").value || r.date <= $("to").value) && (!query || [r.merchant, r.category, r.account, r.kind, r.reference || "", stateLabel(r), ...(view === "review" ? reviewReasons(r) : [])].join(" ").toLowerCase().includes(query)));
 }
 var isEarning = (r) => eligible(r) && !isTransfer(r) && !r.excluded_from_income && BigInt(r.amount_minor) < 0n && !spendKinds.has(r.kind) && !["payment", "repayment"].includes(r.kind);
 var isCardPayment = (r) => eligible(r) && !isTransfer(r) && ["payment"].includes(r.kind) && BigInt(r.amount_minor) < 0n;
 function renderExclusions() {
-  const withinDates = r => (!$('from').value || r.date >= $('from').value) && (!$('to').value || r.date <= $('to').value) && (!$('month').value || r.date.startsWith($('month').value));
+  const withinDates = r => (!$('from').value || r.date >= $('from').value) && (!$('to').value || r.date <= $('to').value) && (!effectiveMonth() || r.date.startsWith(effectiveMonth()));
   const scope = data.rows.filter(r => (!$('currency').value || r.currency === $('currency').value) && (!$('account').value || r.account_key === $('account').value) && (!$('channel').value || r.channel === $('channel').value));
   const rows = scope.filter(withinDates);
   const covered = (data.covered_alerts || []).filter(r => (!$('currency').value || r.currency === $('currency').value) && (!$('account').value || r.account_key === $('account').value) && withinDates(r));
@@ -273,63 +280,23 @@ function renderExclusions() {
   ];
   $('accounting-exclusions')?.replaceChildren(node('li', 'Counts use account, currency, payment type and dates, independently of search, record state and transaction view.'), ...items.map(([count, explanation]) => node('li', count + ' · ' + explanation)));
 }
-function renderOverview(rows, fmt) {
-  const inRows = rows.filter(isEarning), outRows = rows.filter((r) => eligible(r) && spending(r));
-  const moneyIn = -sum(inRows), spent = sum(outRows), net = moneyIn - spent, cardPaid = -sum(rows.filter(isCardPayment));
-  const kept = moneyIn > 0n ? Number(net * 1000n / moneyIn) / 10 : null;
-  const ovCard = (label, value, hint, cls) => {
-    const c = node("div", undefined, "ov-card" + (cls ? " " + cls : ""));
-    c.append(node("div", label, "label"), node("div", value, "value"));
-    if (hint) c.append(node("div", hint, "muted"));
-    return c;
-  };
-  $("ov-cards").replaceChildren(
-    ovCard("Money in", fmt(moneyIn), inRows.length + " credits", "in"),
-    ovCard("Spent", fmt(spent), outRows.length + " transactions · net of refunds", "out"),
-    ovCard("Net", (net > 0n ? "+" : "") + fmt(net), kept === null ? "No money in for this selection" : net >= 0n ? "Kept " + kept.toFixed(1) + "% of money in" : "Spent more than came in", net >= 0n ? "pos" : "neg"),
-    ovCard("Card bills paid", fmt(cardPaid), "Excluded from spending", "")
-  );
-  const month = $("month").value, dates = rows.map((r) => r.date).sort();
-  $("ov-scope").textContent = month ? prettyMonth(month) : dates.length ? prettyDate(dates[0]) + " to " + prettyDate(dates[dates.length - 1]) : "No transactions in this selection";
-  const byMonth = new Map;
-  inRows.forEach((r) => { const k = r.date.slice(0, 7), v = byMonth.get(k) || [0n, 0n]; v[0] -= BigInt(r.amount_minor); byMonth.set(k, v); });
-  outRows.forEach((r) => { const k = r.date.slice(0, 7), v = byMonth.get(k) || [0n, 0n]; v[1] += BigInt(r.amount_minor); byMonth.set(k, v); });
-  let max = 0n;
-  byMonth.forEach((v) => { if (v[0] > max) max = v[0]; if (v[1] > max) max = v[1]; });
-  const pct = (x) => (max > 0n && x > 0n ? Math.max(1, Number(x * 1000n / max) / 10) : 0) + "%";
-  $("ov-months").replaceChildren(...[...byMonth].sort((a, b) => b[0].localeCompare(a[0])).map(([m, [i, o]]) => {
-    const tr = node("tr"), n = i - o;
-    tr.append(node("td", prettyMonth(m)), node("td", fmt(i), "num"), node("td", fmt(o), "num"), node("td", (n > 0n ? "+" : "") + fmt(n), "num " + (n >= 0n ? "pos" : "neg")));
-    const bars = node("td", undefined, "ov-bars"), b1 = node("div", undefined, "mini in"), b2 = node("div", undefined, "mini out");
-    b1.style.width = pct(i); b2.style.width = pct(o);
-    chartTooltip(b1, prettyMonth(m) + ' · Money in ' + fmt(i), true);
-    chartTooltip(b2, prettyMonth(m) + ' · Spent ' + fmt(o), true);
-    bars.append(b1, b2);
-    tr.append(bars);
-    return tr;
-  }));
-  if (!byMonth.size) {
-    const tr = node("tr"), td = node("td", "No money in or spending for this selection.", "muted");
-    td.colSpan = 5; tr.append(td); $("ov-months").append(tr);
-  }
-  $("ov-note").textContent = "Money in excludes refunds, repayments and own transfers. Spending includes provisional records and deducts refunds.";
-}
+
 function update() {
   hideChartTooltip();
   const filtered = filteredRows(), code = $("currency").value, exp = filtered[0]?.exponent ?? data.rows.find((r) => r.currency === code)?.exponent ?? data.statements.find((s)=>s.currency===code)?.exponent ?? null, fmt = (n) => money(n, exp, code || "");
   const visible = filtered.filter((r) => view === "all" ? true : view === "review" ? needsReview(r) : eligible(r) && (view === "spending" ? spending(r) : view === "cashflow" ? bankMovement(r) : view === "transfers" ? isTransfer(r) : !isTransfer(r) && !isInvestment(r) && r.amount_minor < 0));
   renderExclusions();
-  renderOverview(filtered, fmt);
   const included = visible.filter(eligible), saved = included.filter(confirmed), provisional = included.filter((r) => !confirmed(r));
   const title = { all: "All transactions", spending: "Spending overview", incoming: "Incoming money", cashflow: "Bank cashflow", transfers: "Own-account transfers", review: "Review" };
   $("view-title").textContent = title[view];
-  $("table-title").className = ["transactions", "review"].includes(screen) ? "sr-only" : "";
+  $("table-title").className = screen === 'review' ? "sr-only" : "";
   $("table-title").textContent = { all: "All transactions", spending: "Transactions", incoming: "Transactions", cashflow: "Bank movements", transfers: "Transactions", review: "Transactions to review" }[view];
   $("spending-breakdown").hidden = view !== "spending";
   $("review-panel").hidden = view !== "review";
-  $("monthly-panel").hidden = view !== "spending";
   $("report-title").textContent = {all:"All transactions",spending:"Spending report",incoming:"Incoming money",cashflow:"Bank cashflow",transfers:"Transfers",review:"Review"}[view];
-  $("report-period").textContent = [$("month").value ? prettyMonth($("month").value) : [$("from").value, $("to").value].filter(Boolean).map(prettyDate).join(" – "), currencyLabel(code)].filter(Boolean).join(" · ");
+  const dates=screen==='glance'?filtered.map(r=>r.date).filter(Boolean).sort():[$('from').value,$('to').value].filter(Boolean);
+  const periodDates=screen==='glance'?[...new Set([dates[0],dates.at(-1)].filter(Boolean))]:dates;
+  $("report-period").textContent = [$("month").value ? prettyMonth($("month").value) : periodDates.map(prettyDate).join(" – "), currencyLabel(code)].filter(Boolean).join(" · ");
   const notes = { all: "", spending: "", incoming: "Includes refunds and repayments; own transfers and investment principal excluded.", cashflow: "All eligible bank movements, including Investment, Investment withdrawal, repayments and own transfers. Card entries are outside this scope. Principal is excluded from spending and ordinary income; posted interest stays separate.", transfers: "Both account legs; excluded from spending.", review: "Blocked rows are excluded from totals; category decisions are included." };
   $("view-note").textContent = notes[view];
   $("view-note").hidden = !notes[view];
@@ -359,17 +326,6 @@ function update() {
   renderDaily(filtered, fmt);
   renderGlance(filtered, fmt);
   renderCategoryChips(included);
-  const monthly = new Map;
-  included.filter(spending).forEach((r) => {
-    const key = r.date.slice(0, 7), v = monthly.get(key) || [0n, 0n];
-    v[confirmed(r) ? 0 : 1] += BigInt(r.amount_minor);
-    monthly.set(key, v);
-  });
-  $("months").replaceChildren(...[...monthly].sort((a, b) => b[0].localeCompare(a[0])).map(([m, v]) => {
-    const tr = node("tr");
-    [prettyMonth(m), fmt(v[0]), fmt(v[1])].forEach((x, i) => tr.append(node("td", x, i ? "num" : undefined)));
-    return tr;
-  }));
   const tableRows = view === "spending" && categorySelection ? visible.filter(r => categorySelection.includes(r.category)) : visible;
   $("category-selection").hidden = !categorySelection || view !== "spending";
   $("category-selection-label").textContent = categorySelection ? categorySelection.length === 1 ? categorySelection[0] : "Other categories" : "";
@@ -379,7 +335,7 @@ function update() {
     const x = sortKey === "amount_minor" ? BigInt(a.amount_minor) : String(a[sortKey]), y = sortKey === "amount_minor" ? BigInt(b.amount_minor) : String(b[sortKey]);
     return (typeof x === "bigint" ? x > y ? 1 : x < y ? -1 : 0 : x.localeCompare(y)) * direction;
   });
-  const size = screen === "report" ? 10 : Number($("page-size").value) || 25, pages = Math.max(1, Math.ceil(sorted.length / size));
+  const size = Number($("page-size").value) || 25, pages = Math.max(1, Math.ceil(sorted.length / size));
   page = Math.min(page, pages - 1);
   $("transactions").replaceChildren(...sorted.slice(page * size, (page + 1) * size).map((r) => {
     const tr = node("tr");
@@ -431,7 +387,7 @@ if (sync.merchant_categories?.length) {
     return item;
   }));
 }
-$("review-summary").textContent = "Source issues · " + sourceReviewItems.length;
+$("review-summary").textContent = "Issues to review";
 const reviewCount = data.rows.filter(needsReview).length + sourceReviewItems.length;
 $("review-count").textContent = String(reviewCount);
 $("review-count").hidden = reviewCount === 0;
@@ -450,18 +406,21 @@ sourceReviewItems.forEach(item => {
   $("review-groups").append(line);
 });
 $("footer").textContent = data.generated ? "Updated " + localTime(data.generated) : "Template preview · No account data.";
-views.forEach((name) => $("view-" + name).addEventListener("click", () => {
+function changeTransactionType(name) {
   view = name;
   if (name === 'all') {
     ['month', 'account', 'state', 'from', 'to', 'search', 'channel'].forEach(id => $(id).value = '');
   }
-  screen = name === "review" ? "review" : "transactions";
+  screen = name === "review" ? "review" : "report";
   categorySelection = null;
   page = 0;
   closeDetail();
-  views.forEach((v) => $("view-" + v).setAttribute("aria-pressed", String(v === view)));
   update();
-}));
+}
+$("transaction-type").addEventListener("input",()=>changeTransactionType($("transaction-type").value));
+$("view-review").addEventListener("click",()=>changeTransactionType("review"));
+$("transaction-category").addEventListener("input",()=>{categorySelection=$("transaction-category").value?[$("transaction-category").value]:null;page=0;closeDetail();update();});
+$("expenses-title").addEventListener("click",()=>{categoryExpanded=!categoryExpanded;renderCategoryExpansion();});
 sortKeys.forEach((key) => $("sort-" + key).addEventListener("click", () => {
   direction = sortKey === key ? -direction : key === "date" || key === "amount_minor" ? -1 : 1;
   sortKey = key;
@@ -487,22 +446,91 @@ $("next-page").addEventListener("click", () => {
   update();
 });
 $("clear-category").addEventListener("click", () => {categorySelection = null; page = 0; closeDetail(); update();});
-['glance','report','transactions'].forEach(name=>$('tab-'+name).addEventListener('click',()=>{
+['glance','report'].forEach(name=>$('tab-'+name).addEventListener('click',()=>{
   screen=name;if(view==='review')view='spending';page=0;categorySelection=null;closeDetail();update();
 }));
 $('glance-report').addEventListener('click',()=>$('tab-report').click());
-$('glance-transactions').addEventListener('click',()=>$('view-all').click());
+$('glance-transactions').addEventListener('click',()=>{openReportTransactions();jumpToTransactions();});
 $('glance-review').addEventListener('click',()=>$('view-review').click());
+function moveMonth(direction) {
+  const current=$('month').value||latestMonth||availableMonths.at(-1);
+  if(!current)return;
+  const date=new Date(current+'-01T00:00:00Z');if($('month').value)date.setUTCMonth(date.getUTCMonth()+direction);
+  const month=date.toISOString().slice(0,7);
+  if(!availableMonths.includes(month)){option('month',month,prettyMonth(month));availableMonths.push(month);availableMonths.sort();}
+  $('month').value=month;page=0;categorySelection=null;closeDetail();update();
+}
+$('previous-month').addEventListener('click',()=>moveMonth(-1));
+$('next-month').addEventListener('click',()=>moveMonth(1));
+function rangeText(from,to) {
+  return from&&to?prettyDate(from)+' – '+prettyDate(to):from?'From '+prettyDate(from):to?'Through '+prettyDate(to):'All time';
+}
+function applyDateRange(from,to) {
+  const valid=value=>!value||/^\d{4}-\d{2}-\d{2}$/.test(value)&&!isNaN(Date.parse(value+'T00:00:00Z'))&&new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value;
+  if(!valid(from)||!valid(to)||(from&&to&&from>to)){
+    $('range-error').textContent='Choose valid dates with From on or before Through.';$('range-error').hidden=false;return;
+  }
+  $('from').value=from;$('to').value=to;$('range-error').hidden=true;
+  $('report-date-range').open=false;page=0;categorySelection=null;closeDetail();update();$('date-range-toggle').focus?.();
+}
+function fitReportPopover(triggerId,panelId) {
+  const height=globalThis.innerHeight||document.documentElement.clientHeight;
+  const nav=$('report-navigation');
+  const reserve=globalThis.getComputedStyle?.(nav)?.position==='fixed'?nav.getBoundingClientRect().height:0;
+  const available=height-reserve-$(triggerId).getBoundingClientRect().bottom-8-16;
+  $(panelId).style.maxHeight=Math.max(0,Math.floor(available/4)*4)+'px';
+}
+function fitOpenReportPopovers() {
+  if($('report-date-range').open)fitReportPopover('date-range-toggle','date-range-popover');
+  if($('glance-filter-menu').open)fitReportPopover('glance-filter-toggle','glance-filter-fields');
+}
+globalThis.addEventListener?.('resize',fitOpenReportPopovers);
+globalThis.addEventListener?.('scroll',fitOpenReportPopovers,true);
+$('date-range-toggle').addEventListener('click',()=>{
+  if(!$('report-date-range').open){fitReportPopover('date-range-toggle','date-range-popover');$('glance-filter-menu').open=false;$('range-from').value=$('from').value;$('range-to').value=$('to').value;$('range-error').hidden=true;}
+});
+$('range-apply').addEventListener('click',()=>applyDateRange($('range-from').value,$('range-to').value));
+$('range-cancel').addEventListener('click',()=>{$('report-date-range').open=false;$('date-range-toggle').focus?.();});
+$('report-date-range').addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();$('report-date-range').open=false;$('date-range-toggle').focus?.();}});
+['last7','last30','thismonth','lastmonth','thisyear','all'].forEach(preset=>$('range-'+preset).addEventListener('click',()=>{
+  const now=new Date(),year=now.getFullYear(),month=now.getMonth();
+  const today=new Date(Date.UTC(year,month,now.getDate())),iso=date=>date.toISOString().slice(0,10);
+  let from='',to='';
+  if(preset==='last7'||preset==='last30'){const start=new Date(today);start.setUTCDate(start.getUTCDate()-(preset==='last7'?6:29));from=iso(start);to=iso(today);}
+  if(preset==='thismonth'||preset==='lastmonth'){const offset=preset==='lastmonth'?-1:0;from=iso(new Date(Date.UTC(year,month+offset,1)));to=iso(new Date(Date.UTC(year,month+offset+1,0)));}
+  if(preset==='thisyear'){from=iso(new Date(Date.UTC(year,0,1)));to=iso(today);}
+  applyDateRange(from,to);
+}));
+$('glance-filter-toggle').addEventListener('click',()=>{if(!$('glance-filter-menu').open){fitReportPopover('glance-filter-toggle','glance-filter-fields');$('report-date-range').open=false;}});
+$('glance-filter-menu').addEventListener('keydown',event=>{
+  if(event.key!=='Escape')return;
+  event.preventDefault();$('glance-filter-menu').open=false;$('glance-filter-toggle').focus?.();
+});
 reportDesign = initializeReportDesign();
 update();
 
+function jumpToTransactions() {
+  $('transactions-panel').focus?.({preventScroll:true});
+  $('transactions-panel').scrollIntoView?.({block:'start'});
+}
+function openReportTransactions() {
+  if(screen==='glance') {
+    const month=$('month').value;
+    $('from').value=month?month+'-01':'';
+    $('to').value=month?new Date(Date.UTC(Number(month.slice(0,4)),Number(month.slice(5,7)),0)).toISOString().slice(0,10):'';
+    $('search').value=$('state').value='';
+  }
+  screen='report';view='all';categorySelection=null;page=0;closeDetail();update();
+}
 function selectCategory(labels) {
-  screen = "transactions";
+  if(screen==='report')$('month').value='';
+  screen = "report";
   view = "spending";
   categorySelection = labels;
   page = 0;
   closeDetail();
   update();
+  jumpToTransactions();
 }
 function renderCategoryVisuals(cats, gross, fmt, provisional = false) {
   const allCategories = [...new Set(data.rows.map(r=>r.category))].sort();
@@ -524,15 +552,7 @@ function renderCategoryVisuals(cats, gross, fmt, provisional = false) {
   $('category-chart').setAttribute('aria-label', cats.length ? (provisional?'Provisional purchases: ':'Purchases: ')+fmt(gross)+'. '+cats.map(([label,value])=>label+' '+fmt(value)).join('; ') : 'No purchases for these filters');
   $('category-total').textContent = fmt(gross);
   $('category-caption').textContent = (provisional?'Provisional · ':'')+'before refunds';
-  $('categories').replaceChildren(...groups.map(g=>{
-    const button=node('button',undefined,'category-choice'),swatch=node('span',undefined,'category-swatch');
-    button.type='button';swatch.style.background=g.color;
-    button.setAttribute('aria-pressed',String(!!categorySelection && g.labels.every(c=>categorySelection.includes(c))));
-    button.setAttribute('aria-label',g.label+': '+fmt(g.value)+'; filter transactions');
-    button.title=fmt(g.value);
-    const pct=percent(g.value);button.append(swatch,node('span',g.label,'category-name'),node('strong',fmt(g.value),'category-amount'),node('span',pct>0&&pct<.1?'<0.1%':pct.toFixed(1)+'%','pct'));
-    button.addEventListener('click',()=>selectCategory(g.labels));return button;
-  }));
+  categoryColors=new Map(groups.flatMap(g=>g.labels.map(label=>[label,g.color])));
 
 }
 
@@ -553,17 +573,19 @@ function renderActuals(rows,fmt) {
   $('cashflow-summary')?.replaceChildren(...cashflows.map(([name,value])=>{const tr=node('tr');tr.append(node('th',(bankBasis.provisional?'Provisional ':'')+name),node('td',fmt(value),'num'));return tr;}));
   const pendingRows=rows.filter(r=>eligible(r)&&!confirmed(r)&&spending(r)),pending=sum(pendingRows);
   const label=(name,provisional=basis.provisional)=>provisional?'Provisional '+name[0].toLowerCase()+name.slice(1):name;
-  const values=[['Period',$('month').value?prettyMonth($('month').value):[$('from').value,$('to').value].filter(Boolean).map(prettyDate).join(' – ')||'Selected records'],[label('Money in',incomeBasis.provisional),fmt(incoming)],[label('Purchases'),fmt(purchases)],[label('Refunds'),fmt(refunds)],[label('Net spend'),fmt(net)]];
+  const values=[['Period',effectiveMonth()?prettyMonth(effectiveMonth()):rangeText($('from').value,$('to').value)],[label('Money in',incomeBasis.provisional),fmt(incoming)],[label('Purchases'),fmt(purchases)],[label('Refunds'),fmt(refunds)],[label('Net spend'),fmt(net)]];
   if(!basis.provisional)values.push(['Provisional net',fmt(pending)]);
   $('actuals-summary').replaceChildren(...values.map(([label,value])=>{const tr=node('tr');tr.append(node('th',label),node('td',value,'num'));return tr;}));
   $('hero-in-label').textContent='Money in';
   $('hero-out-label').textContent='Money out';
   $('hero-in-total').textContent=fmt(incoming);
-  $('hero-in-status').textContent=incomeBasis.provisional?'Provisional receipts':incomeBasis.rows.length?'Confirmed receipts':'No receipts recorded';
+  $('hero-in-status').textContent=incomeBasis.provisional?'Provisional':'';
+  $('hero-in-status').hidden=!incomeBasis.provisional;
   const pendingIncoming=rows.filter(r=>eligible(r)&&!confirmed(r)&&isEarning(r));
   $('hero-in-provisional').hidden=incomeBasis.provisional||!pendingIncoming.length;
   $('hero-in-provisional').textContent=!incomeBasis.provisional&&pendingIncoming.length?'Provisional money in '+fmt(-sum(pendingIncoming)):'';
-  $('hero-label').textContent=basis.provisional?'Provisional net spend':expenses.length?'Confirmed net spend':'Net spend';
+  $('hero-label').textContent=basis.provisional?'Provisional':'';
+  $('hero-label').hidden=!basis.provisional;
   $('hero-total').textContent=fmt(net);
   $('hero-provisional').hidden=basis.provisional||!pendingRows.length;
   $('hero-provisional').textContent=!basis.provisional&&pendingRows.length?'Provisional net '+fmt(pending):'';
@@ -571,35 +593,70 @@ function renderActuals(rows,fmt) {
   const {start,end}=observedPeriod(rows);
   const days=start&&end&&start<=end?Math.floor((Date.parse(end+'T00:00:00Z')-Date.parse(start+'T00:00:00Z'))/86400000)+1:0;
   $('hero-metrics').replaceChildren(actualCard(label('Refunds'),fmt(refunds)),actualCard(label('Net bank cashflow',bankBasis.provisional),fmt(-sum(bankBasis.rows))),actualCard(label('Daily average'),fmt(days?net/BigInt(days):0n)));
-  $('actuals-note').textContent=(basis.provisional?'Provisional spending shown because no confirmed spending is available for this selection.':'Confirmed spending shown when available.')+(incomeBasis.provisional?' Money in is provisional because no confirmed money in is available.':'')+' Money in is not necessarily income; it excludes refunds, repayments, own transfers and investment principal. Posted interest remains separate.';
-  $('expenses-title').textContent=basis.provisional?'Provisional expenses by category':'Expenses by category';
   const categories=new Map();
   expenses.forEach(r=>{const v=categories.get(r.category)||[0n,0n];v[0]+=BigInt(r.amount_minor);if(BigInt(r.amount_minor)>0n)v[1]+=BigInt(r.amount_minor);categories.set(r.category,v);});
-  $('actual-expenses').replaceChildren(...[...categories].sort((a,b)=>a[1][0]>b[1][0]?-1:a[1][0]<b[1][0]?1:a[0].localeCompare(b[0])).map(([label,[value,gross]])=>{
-    const tr=node('tr'),td=node('td'),bar=node('div',undefined,'actual-bar');
+  const categoryRows=[...categories].sort((a,b)=>a[1][0]>b[1][0]?-1:a[1][0]<b[1][0]?1:a[0].localeCompare(b[0])).map(([name,[value,gross]])=>{
+    const button=node('button',undefined,'category-choice'),swatch=node('span',undefined,'category-swatch');
+    button.type='button';swatch.style.background=categoryColors.get(name)||'var(--chart-6)';
     const share=purchases>0n?Number(gross*10000n/purchases)/100:0;
-    bar.style.width=share+'%';
-    chartTooltip(bar,label+' · '+(basis.provisional?'Provisional purchases ':'Purchases ')+fmt(gross)+' ('+share.toFixed(1)+'%) · Net spending '+fmt(value),true);
-    td.append(node('span',share.toFixed(1)+'%','muted'),bar);
-    tr.append(node('td',label),node('td',fmt(value),'num'),td);return tr;
-  }));
-  if(!categories.size){const tr=node('tr'),td=node('td','No confirmed expenses in this selection.','muted');td.colSpan=3;tr.append(td);$('actual-expenses').append(tr);}
-  const total=node('tr',undefined,'actual-total');total.append(node('th','Total'),node('td',fmt(net),'num'),node('td',''));$('actual-expenses').append(total);
+    button.append(swatch,node('span',name,'category-name'),node('strong',fmt(value),'category-amount'),node('span',share.toFixed(1)+'%','pct'));
+    button.setAttribute('aria-pressed',String(!!categorySelection&&categorySelection.includes(name)));
+    const tip=name+' · '+(basis.provisional?'Provisional purchases ':'Purchases ')+fmt(gross)+' ('+share.toFixed(1)+'%) · Net spending '+fmt(value);
+    button.title=tip;chartTooltip(button,tip);
+    button.addEventListener('click',()=>selectCategory([name]));return button;
+  });
+  $('categories').replaceChildren(...categoryRows.slice(0,3));
+  if(!categoryRows.length)$('categories').append(node('p','No expenses in this selection.','muted'));
+  $('actual-expenses').replaceChildren(...categoryRows.slice(3));
+  $('expenses-title').hidden=categoryRows.length<=3;
+
 }
 function routeScreen() {
-  const glance=screen==='glance',report=screen==='report',transactions=screen==='transactions',review=screen==='review';
-  const visibility={'actuals-panel':glance||report,'glance-panel':glance,'expenses-panel':report,'cashflow-panel':report,'summary-panel':transactions,'spending-breakdown':report,'daily-panel':glance||report,'review-panel':review&&sourceReviewItems.length>0,'transactions-panel':report||transactions||(review&&(reviewCount>sourceReviewItems.length||!sourceReviewItems.length)),'monthly-panel':transactions&&view==='spending','overview':transactions,'merchant-categories':review&&!!sync.merchant_categories?.length};
+  const glance=screen==='glance',report=screen==='report',review=screen==='review',detailed=!glance;
+  $('report-components').setAttribute('data-screen',screen);
+  $('glance-filters').hidden=!glance;
+  $('report-period').hidden=true;
+  $('report-date-range').hidden=!detailed;
+  $('date-range-label').textContent=rangeText($('from').value,$('to').value);
+  $('month-filter').hidden=detailed;
+  $('from-filter').hidden=$('to-filter').hidden=detailed;
+  $('primary-filters').className=detailed?'filters report-filters':'filters';
+  $('secondary-filter-fields').className=detailed?'filters secondary report-secondary':'filters secondary';
+  if(!detailed)$('report-date-range').open=false;
+  for(const id of ['primary-filters','accounting-filters','actuals-breakdown'])$(id).hidden=glance;
+  $('secondary-filters').hidden=true;
+  const mount=(container,ids)=>ids.forEach(id=>{if($(id).parentElement!==$(container))$(container).append($(id));});
+  mount('primary-filters',['month-filter']);
+  mount(detailed?'report-heading':'glance-filters',['glance-filter-menu']);
+  mount(detailed?'glance-filter-fields':'secondary-filters',['secondary-filter-fields']);
+  $('secondary-filter-fields').hidden=glance;
+  $('secondary-filter-fields').className=detailed?'filters secondary report-secondary':'filters secondary';
+  const monthValue=$('month').value;
+  $('glance-month-label').textContent=monthValue?new Intl.DateTimeFormat(undefined,{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(monthValue+'-01T00:00:00Z')):availableMonths.length?'All months':'No months';
+  $('previous-month').disabled=$('next-month').disabled=!monthValue&&!availableMonths.length;
+  mount('glance-filter-fields',['account-filter','channel-filter']);
+  for(const name of ['account','channel'])$(name+'-filter-caption').className='';
+  const filterCount=[$('account').value,$('channel').value,...(detailed?[$('state').value]:[])].filter(Boolean).length;
+  $('glance-filter-count').hidden=!filterCount;$('glance-filter-count').textContent=String(filterCount);
+  $('glance-filter-toggle').setAttribute('aria-label',filterCount?'Filters, '+filterCount+' active':'Filters');
+
+  $('glance-filter-menu').hidden=false;
+  const visibility={'actuals-panel':glance||report,'glance-panel':glance,'expenses-panel':report&&categoryExpanded,'cashflow-panel':report,'summary-panel':false,'spending-breakdown':report,'daily-panel':glance,'review-panel':review,'transactions-panel':report,'merchant-categories':review&&!!sync.merchant_categories?.length};
   Object.entries(visibility).forEach(([id,visible])=>$(id).hidden=!visible);
-  $('category-chips').hidden=review||view!=='spending';
+  $('transaction-type').value=review?'all':view;
+  $('transaction-category').disabled=view!=='spending';
+  renderCategoryExpansion();
+  mount(review?'review-transaction-section':'transactions-panel',['review-transactions','transaction-pagination','transaction-detail']);
+  $('review-source-section').hidden=!sourceReviewItems.length;
+  $('view-note').hidden=review||!$('view-note').textContent;
   $('transaction-table').hidden=review;
   $('review-transactions').hidden=!review;
-  $('page-size').disabled=report;
-  $('page-size-control').hidden=report;
-  $('movement-views').hidden=!transactions;
-  ['glance','report','transactions'].forEach(name=>$('tab-'+name).setAttribute('aria-pressed',String(name===screen)));
-  views.forEach(name=>$('view-'+name).setAttribute('aria-pressed',String(name==='review'?review:transactions&&view===name)));
-  const month=$('month').value || (data.from?.slice(0,7)===data.to?.slice(0,7)?data.from.slice(0,7):'');
-  $('report-title').textContent=glance?'At a glance':report?(month?prettyMonth(month)+' · Monthly report':'Monthly report'):{transactions:'Transactions',review:'Review'}[screen];
+  $('page-size').disabled=false;
+  $('page-size-control').hidden=review;
+  $('movement-views').hidden=!report;
+  ['glance','report'].forEach(name=>$('tab-'+name).setAttribute('aria-pressed',String(name===screen)));
+  $('view-review').setAttribute('aria-pressed',String(review));
+  $('report-title').textContent=glance?'At a glance':report?'Report':'Review';
 }
 
 function renderGlance(rows,fmt) {
@@ -611,24 +668,29 @@ function renderGlance(rows,fmt) {
     description.append(node('strong',r.merchant),node('span',[r.category,prettyDate(r.date)].join(' · '),'muted'));
     button.append(icon,description,amountDisplay(r,fmt,'span','glance-amount'));
     button.setAttribute('aria-label','Details for '+r.merchant+' on '+r.date);
-    button.addEventListener('click',()=>{screen='transactions';view='all';categorySelection=null;page=0;closeDetail();update();showDetail(r,$('tab-glance'));});
+    button.addEventListener('click',()=>{openReportTransactions();showDetail(r,$('tab-glance'));$('transaction-detail').scrollIntoView?.({block:'start'});});
     item.append(button);return item;
   }));
   if(!recent.length)$('glance-activity').append(node('li','No transactions for these filters.','glance-empty muted'));
   const count=rows.filter(needsReview).length;
-  const issues=[count?count+' transaction'+(count===1?'':'s')+' to review':'',sourceReviewItems.length?sourceReviewItems.length+' source issue'+(sourceReviewItems.length===1?'':'s')+' across all sources':''].filter(Boolean);
-  $('glance-review').textContent=issues.length?issues.join(' · ')+' ↗':'No items needing review';
+  const issues=[count?count+' transaction'+(count===1?'':'s'):'',sourceReviewItems.length?sourceReviewItems.length+' source issue'+(sourceReviewItems.length===1?'':'s'):''].filter(Boolean);
+  $('glance-review').textContent=issues.length?issues.join(' and ')+' to review ↗':'No items needing review';
   $('glance-review').disabled=!count&&!sourceReviewItems.length;
 }
 
 
+function renderCategoryExpansion() {
+  $('categories').hidden=false;
+  $('expenses-panel').hidden=screen!=='report'||!categoryExpanded;
+  $('expenses-title').textContent=categoryExpanded?'Show less':'Show more';
+  $('expenses-title').setAttribute('aria-expanded',String(categoryExpanded));
+}
 function renderCategoryChips(rows) {
   const labels=[...new Set(rows.filter(r=>spending(r)&&BigInt(r.amount_minor)>0n).map(r=>r.category))].sort();
-  $('category-chips').replaceChildren(...['All',...labels].map(label=>{
-    const b=node('button',label);b.type='button';
-    b.setAttribute('aria-pressed',String(label==='All'?!categorySelection:categorySelection?.includes(label)||false));
-    b.addEventListener('click',()=>{categorySelection=label==='All'?null:[label];page=0;closeDetail();update();});return b;
-  }));
+  const selection=categorySelection?.length===1?categorySelection[0]:'';
+  const choices=[...new Set([...labels,...(categorySelection||[])])].sort();
+  $('transaction-category').replaceChildren(...[['','All categories'],...choices.map(c=>[c,c])].map(([value,label])=>{const o=node('option',label);o.value=value;return o;}));
+  $('transaction-category').value=selection;
 }
 // Chart values use the same confirmed-first selection as actuals.
 function renderDaily(rows,fmt) {
@@ -640,25 +702,21 @@ function renderDaily(rows,fmt) {
   if(start&&end&&start<=end) for(let t=Date.parse(start+'T00:00:00Z');t<=Date.parse(end+'T00:00:00Z')&&days.length<3660;t+=86400000){
     const date=new Date(t).toISOString().slice(0,10);days.push({date,value:amounts.get(date)||0n});
   }
-  const total=days.reduce((v,d)=>v+d.value,0n),max=days.reduce((v,d)=>d.value>v?d.value:v,0n),average=days.length?total/BigInt(days.length):0n;
+  const max=days.reduce((v,d)=>d.value>v?d.value:v,0n);
   const peak=days.find(d=>d.value===max&&max>0n);
-  $('daily-average').textContent=(basis.provisional?'Provisional average ':'Average ')+fmt(average)+' / day';
-  $('daily-peak').textContent=peak?(basis.provisional?'Largest provisional day · ':'Largest day · ')+prettyDate(peak.date)+' · '+fmt(peak.value):'No '+state+' purchases for this selection';
   $('daily-chart').setAttribute('aria-label','Daily '+state+' purchases');
   $('daily-chart').replaceChildren(...days.map(d=>{
     const b=node('button',undefined,'daily-bar'+(d===peak?' peak':''));b.type='button';
     b.style.height=(max>0n?Math.max(1,Number(d.value*10000n/max)/100):1)+'%';
     const tip=prettyDate(d.date)+': '+fmt(d.value)+' '+state+' purchases';chartTooltip(b,tip);
-    b.addEventListener('click',()=>{$('daily-peak').textContent=tip;});return b;
+    return b;
   }));
   $('daily-labels').replaceChildren(...[...new Set([start,end].filter(Boolean))].map(d=>node('span',prettyDate(d))));
-  const weekend=days.reduce((v,d)=>[0,6].includes(new Date(d.date+'T00:00:00Z').getUTCDay())?v+d.value:v,0n);
-  const fact=(label,value)=>{const n=node('div');n.append(node('span',label,'muted'),node('strong',value));return n;};
-  $('daily-facts').replaceChildren(fact('Days observed',String(days.length)),fact('Days without recorded purchases',String(days.filter(d=>d.value===0n).length)),fact('Weekend share',total>0n?(Number(weekend*1000n/total)/10).toFixed(1)+'%':'—'));
+
 }
 
 function observedPeriod(rows) {
   const dates=rows.filter(eligible).map(r=>r.date).sort();
-  const bounds=[$('month').value?$('month').value+'-01':'',$('from').value].filter(Boolean).sort();
+  const bounds=[effectiveMonth()?effectiveMonth()+'-01':'',screen==='glance'?'':$('from').value].filter(Boolean).sort();
   return {start:bounds.at(-1)||dates[0],end:dates.at(-1)};
 }

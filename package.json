@@ -8,7 +8,7 @@
     "check:report": "bun run scripts/build-report.ts --check",
     "build:plugin": "bun run scripts/package-plugin.ts",
     "test": "bun run scripts/test-python.ts",
-    "test:ui": "bun test tests/report.test.ts tests/report-design.test.ts"
+    "test:ui": "bun test tests/report.test.ts tests/report-design.test.ts tests/report-contrast.test.ts tests/report-spacing.test.ts"
   },
   "devDependencies": {
     "bun": "1.4.3"

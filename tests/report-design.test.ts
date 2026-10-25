@@ -33,7 +33,7 @@ test('unsupported settings reset safely and presets never share mutable colour a
 test('supported themes retain colours and section order',()=>{
  const d=normalizeDesign({version:1,theme:'sage',colors:{accent:'#123456'},order:['expenses','actuals','categories'],components:{actuals:'#abc123'}});
  expect(d.theme).toBe('sage');expect(d.colors.background).toBe('#f4f6f1');expect(d.colors.accent).toBe('#123456');
- expect(d.order.slice(0,3)).toEqual(['expenses','actuals','categories']);expect(d.order).toContain('daily');expect(d.components.actuals).toBe('#abc123');
+ expect(d.order.slice(0,2)).toEqual(['actuals','categories']);expect(d.order).not.toContain('expenses');expect(d.order).not.toContain('cashflow');expect(d.order).toContain('daily');expect(d.components.actuals).toBe('#abc123');
 });
 test('malformed preset names cannot access inherited object properties',()=>{
  expect(normalizeDesign({version:1,theme:'__proto__'}).theme).toBe('moneylens');
@@ -60,4 +60,14 @@ test('unknown component colours do not alter valid appearance settings',()=>{
  expect(d.theme).toBe('sage');expect(d.order.slice(0,2)).toEqual(['transactions','actuals']);
  expect(d.order).not.toContain('coverage');expect(d.order).not.toContain('diagnostics');
  expect(d.components).toEqual({transactions:'#123456'});
+});
+
+
+test('alternate palettes sanitize stored appearance and reject unrelated fields',()=>{
+ const d=normalizeDesign({version:1,theme:'midnight',lightAppearance:{theme:'paper',account:'private',colors:{accent:'url(https://example.invalid)',background:'#fafafa'},components:{actuals:'#123456',unknown:'#000000'}},darkAppearance:{theme:'paper',colors:{cards:'#263a30'}}});
+ expect(d.lightAppearance.theme).toBe('paper');expect(d.lightAppearance.colors.accent).toBe('#2f4be0');
+ expect(d.lightAppearance.colors.background).toBe('#fafafa');
+ expect(d.lightAppearance.components).toEqual({actuals:'#123456'});
+ expect('account' in d.lightAppearance).toBe(false);
+ expect(d.darkAppearance.theme).toBe('midnight');expect(d.darkAppearance.colors.cards).toBe('#263a30');
 });

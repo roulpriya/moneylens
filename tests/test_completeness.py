@@ -151,7 +151,7 @@ class CompletenessTests(unittest.TestCase):
 
     def test_report_missing_the_required_all_transactions_view_is_rejected(self):
         template=Path(__file__).resolve().parents[1]/'skills/automation/assets/report-template.html'
-        original=template.read_text().replace('id="view-all"','id="missing-view-all"')
+        original=template.read_text().replace('id="view-all"','id="missing-view-all"').replace('id="transaction-type"','id="missing-transaction-type"')
         (self.root/'report.html').write_text(original)
         with self.assertRaisesRegex(ValueError,'Report generation failed'):self.batch(source_evidence(fixture()))
         self.assertEqual((self.root/'report.html').read_text(),original)

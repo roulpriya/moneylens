@@ -30,7 +30,7 @@ def render(records, from_date=None, to_date=None, existing=None, sync=None):
                          "blocked": bool(validation["issues"]) or bool(row.get('review_reason')) or row['kind'] == 'unknown',
                          "source": p['source'], "suppressed": record["status"] == "matched" or bool(row.get('duplicate_of') and not duplicate_problem(record, row, records)),
                          "coverage_status": validation.get('coverage', {}).get('status', 'Completeness not verified')})
-    visibility_supported = existing is None or 'id="view-all"' in existing
+    visibility_supported = existing is None or 'id="view-all"' in existing or ('id="transaction-type"' in existing and 'value="all">All transactions</option>' in existing)
     supplied_channels={tuple(record['matched_to']):record['payload']['transactions'][0].get('channel') for record in records if record.get('matched_to')}
     for row in rows:
         if row['channel'] is None:row['channel']=supplied_channels.get((row['statement'],row['index']))
