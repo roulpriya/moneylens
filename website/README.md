@@ -1,6 +1,6 @@
 # MoneyLens website
 
-A static, two-page explanation of the MoneyLens skills, workflow, setup, and
+A static, two-page explanation of the MoneyLens plugin, workflow, setup, and
 privacy/usage policy. Built with Bun, Vite, vanilla JavaScript, and Tailwind CSS 4.
 Fonts and core palette are shared with the skill report in `../src/brand.css`.
 Vendored font sources live in `../src/fonts`; their OFL notices also ship in

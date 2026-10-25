@@ -4,7 +4,7 @@ export const COMPONENTS = [
   ['actuals','actuals-panel','Monthly actuals'], ['summary','summary-panel','Summary'], ['categories','spending-breakdown','Category chart'], ['daily','daily-panel','Daily spend'], ['transactions','transactions-panel','Transactions'],
   ['expenses','expenses-panel','Expenses'], ['cashflow','cashflow-panel','Cashflow'], ['review','review-panel','Source review'],
   ['monthly','monthly-panel','Monthly totals'],
-  ['overview','overview','Overview'], ['merchants','merchant-categories','Merchant categories']
+  ['overview','overview','Overview'], ['merchants','merchant-categories','Merchant categories'], ['glance','glance-panel','Recent activity']
 ];
 const PRESETS = {
   moneylens: {background:'#f7f8f2',cards:'#fffefa',text:'#283b33',accent:'#2d483b',header:'#f7f8f2',highlights:'#eaf0e0',chart:['#9daf7b','#c3d0a7','#78946b','#b9a47a','#91a69b','#b4acbd']},

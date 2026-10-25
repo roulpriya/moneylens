@@ -21,6 +21,7 @@ class Element {
   }
   replaceChildren(...children: Element[]) { this.children = []; this.text = ''; this.append(...children); }
   addEventListener(name: string, callback: (event?: any) => void) { this.listeners[name] = callback; }
+  click() { this.listeners.click?.(); }
   setAttribute(name: string, value: string) { this.attributes[name] = value; }
   removeAttribute(name: string) { delete this.attributes[name]; }
   getBoundingClientRect() { return {left:20,top:100,right:40,bottom:120,width:20,height:20}; }
@@ -46,6 +47,55 @@ function render(extraRows: Record<string,unknown>[] = [], extraData: Record<stri
 const values = (element: Element) => element.children.map(child => child.children[1].textContent);
 const click = (elements: Map<string,Element>, id: string) => elements.get(id)!.listeners.click();
 const input = (elements: Map<string,Element>, id: string, value: string) => { const e=elements.get(id)!;e.value=value;e.listeners.input(); };
+
+test('At a glance opens with the same filtered actuals and daily chart as the detailed report', () => {
+  const e=render([{amount_minor:5000,kind:'purchase',status:'provisional'},{amount_minor:999900,kind:'purchase',blocked:true},{amount_minor:80000,kind:'transfer_out',excluded_from_spending:true}]);
+  expect(e.get('tab-glance')!.attributes['aria-pressed']).toBe('true');
+  expect(e.get('report-title')!.textContent).toBe('At a glance');
+  for(const id of ['actuals-panel','daily-panel','glance-panel'])expect(e.get(id)!.hidden).toBe(false);
+  for(const id of ['transactions-panel','expenses-panel','cashflow-panel'])expect(e.get(id)!.hidden).toBe(true);
+  expect(e.get('hero-total')!.textContent).toBe('INR 130.00');
+  const before=e.get('actuals-summary')!.textContent;
+  click(e,'glance-report');expect(e.get('glance-panel')!.hidden).toBe(true);
+  expect(e.get('actuals-summary')!.textContent).toBe(before);
+  expect(e.get('transactions-panel')!.hidden).toBe(false);
+  click(e,'tab-glance');input(e,'channel','upi');
+  expect(e.get('hero-total')!.textContent).toBe('INR 20.00');
+  expect(e.get('hero-in-total')!.textContent).toBe('INR 50.00');
+  expect(e.get('glance-activity')!.children).toHaveLength(2);
+});
+
+test('glance recent activity excludes duplicates and blocked or other-currency rows and opens source details', () => {
+  const e=render([
+    {date:'2026-10-23',merchant:'Latest receipt',amount_minor:-4500,kind:'credit'},
+    {date:'2026-10-24',merchant:'Blocked',amount_minor:99900,kind:'purchase',blocked:true},
+    {date:'2026-10-25',merchant:'Duplicate',amount_minor:99900,kind:'purchase',suppressed:true},
+    {date:'2026-10-26',merchant:'Other currency',amount_minor:99900,kind:'purchase',currency:'USD'}
+  ]);
+  const activity=e.get('glance-activity')!;
+  expect(activity.children).toHaveLength(5);
+  expect(activity.children[0].textContent).toContain('Latest receipt');
+  for(const label of ['Blocked','Duplicate','Other currency'])expect(activity.textContent).not.toContain(label);
+  activity.children[0].children[0].listeners.click();
+  expect(e.get('transactions-panel')!.hidden).toBe(false);
+  expect(e.get('transaction-detail')!.hidden).toBe(false);
+  expect(e.get('detail-fields')!.textContent).toContain('Latest receipt');
+  click(e,'tab-glance');click(e,'glance-review');expect(e.get('review-panel')!.hidden).toBe(false);
+  click(e,'tab-glance');click(e,'glance-transactions');expect(e.get('view-all')!.attributes['aria-pressed']).toBe('true');
+});
+
+test('glance labels provisional activity and handles empty filters without inventing confirmation', () => {
+  const e=render([{date:'2026-10-22',amount_minor:20000,kind:'purchase',status:'provisional'}]);
+  input(e,'from','2026-10-20');
+  expect(e.get('hero-label')!.textContent).toBe('Provisional net spend');
+  const amount=e.get('glance-activity')!.children[0].children[0].children[2];
+  expect(amount.children[1].attributes['aria-label']).toContain('Provisional');
+  expect(e.get('daily-chart')!.children.at(-1)!.attributes['aria-label']).toContain('INR 200.00 provisional purchases');
+  input(e,'search','missing');expect(e.get('glance-activity')!.textContent).toContain('No transactions');
+  const empty=render([],{rows:[],review_items:[]});
+  expect(empty.get('glance-review')!.disabled).toBe(true);
+  expect(empty.get('glance-review')!.textContent).toBe('No items needing review');
+});
 
 test('daily chart amounts appear on hover and focus and dismiss on leave, Escape, or filtering', () => {
   const e=render(), bar=e.get('daily-chart')!.children[0], tooltip=e.get('chart-tooltip')!;
@@ -233,7 +283,7 @@ test('monthly actuals reconcile categories, refunds and exclusions without budge
  expect(summary.map(r=>r.children[1].textContent).slice(1)).toEqual(['INR 50.00','INR 140.00','INR 10.00','INR 130.00','INR 38.00']);
  expect(e.get('actual-expenses')!.children.at(-1)!.children[1].textContent).toBe('INR 130.00');
  expect(e.get('actuals-note')!.textContent).toContain('not necessarily income');
- expect(e.get('actuals-panel')!.hidden).toBe(false);expect(e.get('transactions-panel')!.hidden).toBe(false);
+ expect(e.get('actuals-panel')!.hidden).toBe(false);expect(e.get('transactions-panel')!.hidden).toBe(true);
  click(e,'tab-transactions');expect(e.get('transactions-panel')!.hidden).toBe(false);expect(e.get('actuals-panel')!.hidden).toBe(true);
  click(e,'view-review');expect(e.get('review-panel')!.hidden).toBe(false);
  click(e,'tab-report');expect(e.get('actuals-panel')!.hidden).toBe(false);expect(e.get('review-panel')!.hidden).toBe(true);
@@ -270,6 +320,7 @@ test('daily chart uses confirmed purchases and observed days without inventing c
 test('report preview, category chips, navigation and row sizing stay independent of actuals',()=>{
  const e=render(Array.from({length:30},(_,i)=>({amount_minor:100,kind:'purchase',category:i%2?'Shopping':'Groceries'})));
  const actuals=e.get('actuals-summary')!.textContent;
+ click(e,'tab-report');
  expect(e.get('transactions')!.children).toHaveLength(10);expect(e.get('page-size')!.disabled).toBe(true);
  const chip=e.get('category-chips')!.children.find(c=>c.textContent==='Shopping')!;chip.listeners.click();
  expect(e.get('page-info')!.textContent).toContain('of 15');expect(e.get('actuals-summary')!.textContent).toBe(actuals);

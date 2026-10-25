@@ -182,6 +182,21 @@ footer { padding-top: 28px; font-size: 10px; line-height: 1.8; }
 .actual-bar:focus-visible, .mini:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 /* Money in and money out share the same visual weight at every screen size. */
+.glance-panel { grid-column: span 6; display: flex; flex-direction: column; }
+.glance-activity { list-style: none; padding: 0; margin: 18px 0; }
+.glance-activity li + li { border-top: 1px solid var(--line); }
+.glance-transaction { display: grid; grid-template-columns: 32px minmax(0, 1fr) minmax(0, .7fr); gap: 12px; align-items: center; width: 100%; padding: 16px 0; border: 0; background: transparent; text-align: left; }
+.glance-merchant-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 6px; color: var(--accent); background: var(--accent-soft); font-size: 12px; }
+.glance-description { min-width: 0; display: grid; gap: 6px; overflow-wrap: anywhere; }
+.glance-description strong { font-size: 12px; font-weight: 500; }
+.glance-description .muted { font-size: 10px; line-height: 1.6; }
+.glance-amount { text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.glance-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); }
+.glance-actions .link, .glance-panel .section-heading .link { font-size: 11px; padding-inline: 0; text-align: left; }
+.glance-evidence { font-size: 10px; line-height: 1.8; margin-top: 14px; }
+.glance-empty { padding: 30px 0; font-size: 12px; }
+@media (max-width: 760px) { .glance-panel { grid-column: 1 / -1; } }
+@media (max-width: 520px) { .views { flex-wrap: wrap; } .views button { padding-inline: 8px; font-size: 11px; } }
 .actuals-hero { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; align-items: stretch; gap: 20px; }
 .hero-money { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .hero-money-card { min-width: 0; padding: 26px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--global-text); }

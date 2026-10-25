@@ -132,7 +132,7 @@ $("to").value = data.to;
 var views = ["all", "spending", "incoming", "cashflow", "transfers", "review"];
 var sortKeys = ["date", "merchant", "category", "kind", "amount_minor", "account"];
 var view = "spending";
-var screen = "report";
+var screen = "glance";
 var categorySelection = null;
 var reportDesign;
 var sortKey = "date";
@@ -349,7 +349,7 @@ function update() {
   included.filter((r) => spending(r) && r.amount_minor > 0).forEach((r) => category.set(r.category, (category.get(r.category) || 0n) + BigInt(r.amount_minor)));
   const gross = sum(included, (r) => spending(r) && r.amount_minor > 0), cats = [...category].sort((a, b) => a[1] > b[1] ? -1 : a[1] < b[1] ? 1 : 0);
   const reportBasis = preferredAmounts(filtered, spending), reportRows = reportBasis.rows;
-  if (screen === 'report') {
+  if (screen === 'report' || screen === 'glance') {
     const reportCategory = new Map();
     reportRows.filter(r=>spending(r) && BigInt(r.amount_minor)>0n).forEach(r=>reportCategory.set(r.category,(reportCategory.get(r.category)||0n)+BigInt(r.amount_minor)));
     const actualCats=[...reportCategory].sort((a,b)=>a[1]>b[1]?-1:a[1]<b[1]?1:a[0].localeCompare(b[0]));
@@ -357,6 +357,7 @@ function update() {
   } else renderCategoryVisuals(cats, gross, fmt);
   renderActuals(filtered, fmt);
   renderDaily(filtered, fmt);
+  renderGlance(filtered, fmt);
   renderCategoryChips(included);
   const monthly = new Map;
   included.filter(spending).forEach((r) => {
@@ -486,9 +487,12 @@ $("next-page").addEventListener("click", () => {
   update();
 });
 $("clear-category").addEventListener("click", () => {categorySelection = null; page = 0; closeDetail(); update();});
-['report','transactions'].forEach(name=>$('tab-'+name).addEventListener('click',()=>{
+['glance','report','transactions'].forEach(name=>$('tab-'+name).addEventListener('click',()=>{
   screen=name;if(view==='review')view='spending';page=0;categorySelection=null;closeDetail();update();
 }));
+$('glance-report').addEventListener('click',()=>$('tab-report').click());
+$('glance-transactions').addEventListener('click',()=>$('view-all').click());
+$('glance-review').addEventListener('click',()=>$('view-review').click());
 reportDesign = initializeReportDesign();
 update();
 
@@ -583,8 +587,8 @@ function renderActuals(rows,fmt) {
   const total=node('tr',undefined,'actual-total');total.append(node('th','Total'),node('td',fmt(net),'num'),node('td',''));$('actual-expenses').append(total);
 }
 function routeScreen() {
-  const report=screen==='report',transactions=screen==='transactions',review=screen==='review';
-  const visibility={'actuals-panel':report,'expenses-panel':report,'cashflow-panel':report,'summary-panel':transactions,'spending-breakdown':report,'daily-panel':report,'review-panel':review&&sourceReviewItems.length>0,'transactions-panel':report||transactions||(review&&(reviewCount>sourceReviewItems.length||!sourceReviewItems.length)),'monthly-panel':transactions&&view==='spending','overview':transactions,'merchant-categories':review&&!!sync.merchant_categories?.length};
+  const glance=screen==='glance',report=screen==='report',transactions=screen==='transactions',review=screen==='review';
+  const visibility={'actuals-panel':glance||report,'glance-panel':glance,'expenses-panel':report,'cashflow-panel':report,'summary-panel':transactions,'spending-breakdown':report,'daily-panel':glance||report,'review-panel':review&&sourceReviewItems.length>0,'transactions-panel':report||transactions||(review&&(reviewCount>sourceReviewItems.length||!sourceReviewItems.length)),'monthly-panel':transactions&&view==='spending','overview':transactions,'merchant-categories':review&&!!sync.merchant_categories?.length};
   Object.entries(visibility).forEach(([id,visible])=>$(id).hidden=!visible);
   $('category-chips').hidden=review||view!=='spending';
   $('transaction-table').hidden=review;
@@ -592,10 +596,29 @@ function routeScreen() {
   $('page-size').disabled=report;
   $('page-size-control').hidden=report;
   $('movement-views').hidden=!transactions;
-  ['report','transactions'].forEach(name=>$('tab-'+name).setAttribute('aria-pressed',String(name===screen)));
+  ['glance','report','transactions'].forEach(name=>$('tab-'+name).setAttribute('aria-pressed',String(name===screen)));
   views.forEach(name=>$('view-'+name).setAttribute('aria-pressed',String(name==='review'?review:transactions&&view===name)));
   const month=$('month').value || (data.from?.slice(0,7)===data.to?.slice(0,7)?data.from.slice(0,7):'');
-  $('report-title').textContent=report?(month?prettyMonth(month)+' · Monthly report':'Monthly report'):{transactions:'Transactions',review:'Review'}[screen];
+  $('report-title').textContent=glance?'At a glance':report?(month?prettyMonth(month)+' · Monthly report':'Monthly report'):{transactions:'Transactions',review:'Review'}[screen];
+}
+
+function renderGlance(rows,fmt) {
+  const recent=rows.filter(r=>eligible(r)&&Number.isSafeInteger(r.amount_minor)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+  $('glance-activity').replaceChildren(...recent.map(r=>{
+    const item=node('li'),button=node('button',undefined,'glance-transaction');button.type='button';
+    const icon=node('span',(r.merchant||'?').slice(0,1).toUpperCase(),'glance-merchant-icon');icon.setAttribute('aria-hidden','true');
+    const description=node('span',undefined,'glance-description');
+    description.append(node('strong',r.merchant),node('span',[r.category,prettyDate(r.date)].join(' · '),'muted'));
+    button.append(icon,description,amountDisplay(r,fmt,'span','glance-amount'));
+    button.setAttribute('aria-label','Details for '+r.merchant+' on '+r.date);
+    button.addEventListener('click',()=>{screen='transactions';view='all';categorySelection=null;page=0;closeDetail();update();showDetail(r,$('tab-glance'));});
+    item.append(button);return item;
+  }));
+  if(!recent.length)$('glance-activity').append(node('li','No transactions for these filters.','glance-empty muted'));
+  const count=rows.filter(needsReview).length;
+  const issues=[count?count+' transaction'+(count===1?'':'s')+' to review':'',sourceReviewItems.length?sourceReviewItems.length+' source issue'+(sourceReviewItems.length===1?'':'s')+' across all sources':''].filter(Boolean);
+  $('glance-review').textContent=issues.length?issues.join(' · ')+' ↗':'No items needing review';
+  $('glance-review').disabled=!count&&!sourceReviewItems.length;
 }
 
 
