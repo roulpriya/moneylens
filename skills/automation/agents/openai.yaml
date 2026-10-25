@@ -1,4 +1,4 @@
 interface:
-  display_name: "Automation"
-  short_description: "Card and bank statements with own transfers excluded"
-  default_prompt: "Use $automation to fetch new email card/bank-account statements and alerts, exclude confirmed own-account transfers, and update the data in my existing report."
+  display_name: "Update MoneyLens"
+  short_description: "Categorize spending, reconcile statements, and update reports"
+  default_prompt: "Use $automation to update my existing MoneyLens report from authorized financial emails, categorize new transactions using saved decisions first, reconcile alerts with statements, and show spending, incoming money, transfers, and items needing review."

@@ -1,4 +1,4 @@
 interface:
-  display_name: "Setup"
-  short_description: "Find financial emails through MCP and schedule a report"
-  default_prompt: "Use $setup to verify my connected email MCP provider, find recent card and bank activity and statements, read statement password instructions and ask only for missing inputs, then use the sibling automation skill to prepare my report and schedule refreshes."
+  display_name: "Set up MoneyLens"
+  short_description: "Connect email, confirm accounts, and start your spending report"
+  default_prompt: "Use $setup to set up my private MoneyLens spending report from connected financial emails, confirm my accounts, verify statement PDF access, prepare the first report, and schedule recurring updates."

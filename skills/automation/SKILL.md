@@ -1,9 +1,9 @@
 ---
 name: automation
-description: Use MCP to read financial emails inventoried during setup, add provisional transactions, reconcile statement imports, and update the MoneyLens report. Use for daily or manual refreshes and transaction/category corrections; use setup for account onboarding, PDF credential repair, or schedule changes.
+description: Keep an existing MoneyLens ledger and spending report up to date from the financial emails and accounts confirmed during setup. Collect transaction notices and statement PDFs through email MCP, reuse cached merchant categories or classify new merchants, and reconcile provisional transactions against authoritative statements. Refresh spending, incoming money, transfers, and items needing review. Use for scheduled or manual updates and transaction/category corrections; use setup for new accounts, PDF access repair, or schedule changes.
 ---
 
-# Automation
+# Update MoneyLens
 
 The agent pulls data through the connected email MCP provider. The accounting script accepts local transaction data and manages the ledger and report. The agent interprets institutions, message layouts, sender evidence, account identity, transaction kinds, payment channels, source-specific notation, and new merchant categories before supplying fields; scripts have no bank or email-provider parser catalog. PDF extraction is a separate script. Use the current release's private data directory, confirmed accounts, source history, categories, and report. Pre-release databases and input formats are unsupported; do not convert them or silently replace their files.
 

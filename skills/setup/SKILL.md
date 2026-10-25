@@ -1,9 +1,9 @@
 ---
 name: setup
-description: Set up or resume MoneyLens through a connected email MCP provider, discover recent card and bank activity and statements, resolve issuer-documented statement passwords, and hand off to the sibling automation skill for one report and recurring refreshes. Use for onboarding, added mailboxes or accounts, credential repair, and cadence repair.
+description: Set up MoneyLens to turn financial emails into a private spending report. Discover and confirm card and bank accounts through a connected email MCP provider, verify access to protected statement PDFs, prepare the first report, and schedule recurring updates. Use for first-time setup, added mailboxes or accounts, statement password repair, and schedule changes. Use automation to refresh an existing ledger and report.
 ---
 
-# Setup
+# Set up MoneyLens
 
 In command examples, `<pdf-extract>` means `<python> <automation-skill>/scripts/pdf_extract.py`, the separate PDF tool. `<moneylens>` means `<python> <automation-skill>/scripts/moneylens.py`, using the installed Python 3.10+ and the absolute directory of the automation skill (the sibling `automation` directory when reading setup). Quote paths for the current shell; keep each command argument as a separate argument.
 
