@@ -58,7 +58,7 @@ GitHub after the build completes.
 - `index.html`: overview, fictional report, working steps, and installation.
 - `policy.html`: privacy and usage policy. Update its revision date when policy
   text changes. Verify claims against the maintained skill and Python runtime.
-- `src/main.js`: keyboard-accessible workflow tabs and copy command.
+- `src/main.js`: installation command copy button.
 - `src/style.css`: Tailwind import, theme tokens, and responsive page styling.
 
 The explanatory sample is not an embedded personal MoneyLens report. Keep all

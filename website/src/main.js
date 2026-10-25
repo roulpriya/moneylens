@@ -1,31 +1,5 @@
 import './style.css';
 
-const tabs = [...document.querySelectorAll('[role="tab"][data-step]')];
-
-function selectStep(tab, moveFocus = false) {
-  for (const item of tabs) {
-    const selected = item === tab;
-    item.setAttribute('aria-selected', String(selected));
-    item.tabIndex = selected ? 0 : -1;
-    document.getElementById(item.getAttribute('aria-controls')).hidden = !selected;
-  }
-  if (moveFocus) tab.focus();
-}
-
-tabs.forEach((tab, index) => {
-  tab.addEventListener('click', () => selectStep(tab));
-  tab.addEventListener('keydown', (event) => {
-    let next;
-    if (event.key === 'ArrowDown') next = (index + 1) % tabs.length;
-    if (event.key === 'ArrowUp') next = (index - 1 + tabs.length) % tabs.length;
-    if (event.key === 'Home') next = 0;
-    if (event.key === 'End') next = tabs.length - 1;
-    if (next === undefined) return;
-    event.preventDefault();
-    selectStep(tabs[next], true);
-  });
-});
-
 document.querySelectorAll('[data-copy]').forEach((button) => {
   button.addEventListener('click', async () => {
     const code = document.getElementById(button.dataset.copy);
