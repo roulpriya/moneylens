@@ -126,7 +126,8 @@ def enrich(db, effective):
                 row['display_merchant'] = text(row['metadata']['display_description'], 'display_description', 500)
             if row['metadata'].get('display_note') is not None:
                 text(row['metadata']['display_note'], 'display_note', 2000)
-    return effective
+    from .accounting import decorate as accounting_treatment
+    return accounting_treatment(db, effective)
 
 
 def list_transactions(db, include_covered=False):
@@ -144,6 +145,9 @@ def list_transactions(db, include_covered=False):
             result.append({'id': ident, 'description': row['merchant'], 'amount': decimal_amount(row['amount_minor'],exponent),
                 'amount_minor': row['amount_minor'], 'currency': record['payload']['currency'], 'currency_exponent': exponent, 'date': row['date'],
                 'kind': row['kind'], 'channel': row.get('channel'), 'account_type': record['payload']['account_type'],
+                'accounting_treatment': row.get('accounting_treatment', 'ordinary'),
+                'excluded_from_spending': row.get('excluded_from_spending', False),
+                'excluded_from_income': row.get('excluded_from_income', False),
                 'category': row['category'], 'account': record['payload']['account_key'],
                 'status': 'confirmed' if record['status'] in {'posted', 'imported'} else record['status'],
                 'metadata': row.get('metadata', {}), 'source': record['payload']['source']})

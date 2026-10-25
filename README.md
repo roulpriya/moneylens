@@ -29,6 +29,30 @@ Plugin installation does not connect an email account or create a daily schedule
 
 ## Python command interface
 
+Bank categories `Investment` and `Investment withdrawal` keep principal visible
+in Cashflow while excluding it from spending and ordinary incoming-money
+metrics. Posted interest retains its own evidence and category. The report's
+Cashflow section uses bank inflows less outflows, including repayments and
+investment movements. Balance snapshots remain document limitations and never
+create missing-transaction placeholders.
+
+`preferences --data-dir <directory>` reads saved category treatments and report
+dates; `preferences --input <private-preferences.json>` updates them. Successful
+reports retain their date scope for refreshes that omit both bounds. Explicit
+one-sided ranges clear the other bound; empty strings for both clear the scope.
+Rolling schedules should pass fresh dates each run. See
+[accounting preferences](skills/automation/references/personal-context.md).
+
+The collapsed Accounting treatment and exclusions audit separates validation
+blocks, uncategorized amounts that still count, transfers/repayments, investment
+principal, covered alerts, duplicates and rows outside selected dates. New UI
+features require a report generated with the current template at a new path;
+ordinary refreshes preserve existing private HTML.
+
+Collection uses at most three in-flight message/attachment reads and checkpoints
+nonsecret progress after every durable source result. See the agent's
+[collection recovery protocol](skills/automation/references/collection-progress.md).
+
 The agent searches and retrieves email through MCP, then supplies local inputs to two scripts. Accounting uses a small money-management interface:
 
 Prefer static rules and saved mappings over LLM calls. Accounting, reconciliation, totals, reporting, and PDF extraction are deterministic. Known merchants reuse cached categories, including statement rows whose category is omitted. LLM interpretation is reserved for unfamiliar source content and new uncached merchants; resolved decisions are cached for reuse. Explicit transaction categories take priority.
@@ -98,7 +122,7 @@ You can ask it to correct a transaction category or add metadata and refresh the
 
 Before every email pull, MoneyLens states the selected email address. It reuses the mailbox scope explicitly authorized for the current pull or recurring refreshes. If that scope is missing or ambiguous and multiple accounts are available, it asks which to use; it never silently expands to all saved accounts. Only selected mailboxes are accessed; collection progress and unresolved retrievals belong to the agent's private source inventory.
 
-The report uses confirmed spending when available; otherwise its headline, category breakdown, and daily chart show eligible provisional amounts labeled Provisional. Confirmed zero amounts stay confirmed. The transaction summary keeps confirmed net spending, provisional net spending, their combined estimate, and refunds separate. Spending, Incoming money, Transfers and Review are separate views with search, sortable columns, pagination and transaction details. Each transaction shows its source beneath the merchant. Transaction details include full provenance, statement completeness and validation checks; unresolved source issues remain in Review. Confirmation describes the transaction evidence, not complete calendar-month coverage. Current-format reports retain their UI on ordinary refresh. Unsupported templates are rejected; generate a new report instead.
+The report uses confirmed spending when available; otherwise its headline, category breakdown, and daily chart show eligible provisional amounts labeled Provisional. Confirmed zero amounts stay confirmed. The transaction summary keeps confirmed net spending, provisional net spending, their combined estimate, and refunds separate. Spending, Incoming money, Cashflow, Transfers, All transactions and Review are separate views with search, sortable columns, pagination and transaction details. Source evidence is available through each transaction’s View details button. Transaction details include full provenance, statement completeness and validation checks; unresolved source issues remain in Review. Confirmation describes the transaction evidence, not complete calendar-month coverage. Current-format reports retain their UI on ordinary refresh. Unsupported templates are rejected; generate a new report instead.
 
 | Skill | Purpose |
 | --- | --- |

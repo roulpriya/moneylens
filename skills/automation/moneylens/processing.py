@@ -19,6 +19,13 @@ def failed_row_mappings(config, payload, reason):
         validate_source(config, {**payload, 'transactions': []})
     except (ValueError, KeyError, TypeError):
         return {}
+    coverage = payload.get('coverage')
+    if isinstance(coverage, dict) and isinstance(coverage.get('sections'), list):
+        selected = next((section for section in coverage['sections'] if isinstance(section, dict) and section.get('id') == coverage.get('section_id')), {})
+        if selected.get('type') == 'balance_snapshot' and selected.get('rows') == []:
+            # A rejected attempt to turn balances into movements remains a
+            # document-level review, never invented financial placeholders.
+            return {}
     rows = payload.get('transactions', [])
     if not isinstance(rows, list) or len(rows) > 20000: return {}
     safe = []

@@ -129,6 +129,8 @@ def normalize(payload):
     normalize_coverage(p)
     if p.get('coverage'):
         section = next(s for s in p['coverage']['sections'] if s['id'] == p['coverage']['section_id'])
+        require(section.get('type') != 'balance_snapshot' or not (p['transactions'] or review),
+                'Balance snapshots cannot supply transaction or unresolved transaction rows')
         mapped_ids = {r.get('source_row_id') for r in p['transactions'] + review}
         for observed in section['rows']:
             if observed['id'] not in mapped_ids:

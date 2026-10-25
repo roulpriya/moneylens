@@ -4,13 +4,13 @@ const root = resolve(import.meta.dir, '..');
 const target = resolve(root, 'dist/moneylens');
 await rm(target, {recursive: true, force: true});
 await mkdir(target, {recursive: true});
-const modules = ['__init__', 'accounts', 'alerts', 'app', 'credentials', 'dashboard',
+const modules = ['__init__', 'accounting', 'accounts', 'alerts', 'app', 'credentials', 'dashboard',
   'ledger', 'merchants', 'pdf_extract', 'personalize', 'preflight', 'private_files',
   'processing', 'statement_coverage', 'store', 'transactions', 'transfers', 'windows_access'];
 const files = ['plugin.json', 'LICENSE', 'README.md',
   ...['setup', 'automation'].flatMap(skill => [`skills/${skill}/SKILL.md`, `skills/${skill}/agents/openai.yaml`]),
   'skills/automation/assets/report-template.html',
-  ...['email-and-extraction', 'ledger-contract', 'personal-context', 'setup-contract'].map(name => `skills/automation/references/${name}.md`),
+  ...['collection-progress', 'email-and-extraction', 'ledger-contract', 'personal-context', 'setup-contract'].map(name => `skills/automation/references/${name}.md`),
   ...['moneylens.py', 'pdf_extract.py', 'requirements.txt', 'requirements-pdf.txt'].map(name => `skills/automation/scripts/${name}`),
   ...modules.map(name => `skills/automation/moneylens/${name}.py`)];
 // Ship only maintained release files; private state and retired helpers cannot enter the bundle.

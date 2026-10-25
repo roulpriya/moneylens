@@ -40,6 +40,8 @@ def main(argv=None):
     merchants.add_argument('--category')
     accounts = command('accounts', 'Show or save confirmed local account settings')
     accounts.add_argument('--input', type=Path)
+    prefs = command('preferences', 'Show or save accounting treatments and report date scope')
+    prefs.add_argument('--input', type=Path)
     args = parser.parse_args(argv)
     if args.command == 'import-statement':
         require(args.input.stat().st_size <= 20 * 1024 * 1024, 'Statement input exceeds 20 MiB')
@@ -77,6 +79,10 @@ def main(argv=None):
                 elif args.command == 'update':
                     result = transactions.update(db, args.id, {k: getattr(args, k) for k in ('description', 'amount', 'date', 'category', 'metadata', 'kind') if getattr(args, k) is not None})
                 elif args.command == 'remove': result = transactions.remove(db, args.id)
+                elif args.command == 'preferences':
+                    from .accounting import preferences
+                    if args.input: require(args.input.stat().st_size <= 1024 * 1024, 'Preferences input exceeds 1 MiB')
+                    result = preferences(db, json.loads(args.input.read_text(encoding='utf-8')) if args.input else None)
                 else:
                     from .store import get, save_config
                     if args.input:

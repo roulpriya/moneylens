@@ -66,13 +66,20 @@ def render(records, from_date=None, to_date=None, existing=None, sync=None):
                          'coverage_status': 'Completeness not verified'})
         add_review(pending['message_id'], pending.get('account_label', ''), pending['reason'], pending.get('mailbox_id', ''))
     for row in rows:
-        if not row.get('excluded_from_spending') and row['category'] == 'Other' and (row['amount_minor'] or 0) > 0 and row['kind'] in {'purchase', 'debit', 'fee', 'interest', 'cash_advance', 'adjustment_debit'} and not row['suppressed']:
+        if not row['blocked'] and not row.get('excluded_from_spending') and row['category'] == 'Other' and (row['amount_minor'] or 0) > 0 and row['kind'] in {'purchase', 'debit', 'fee', 'interest', 'cash_advance', 'adjustment_debit'} and not row['suppressed']:
             key = (row['mailbox_id'], row['statement'], row['index'])
             reviews[key] = {'group': 'Categorization', 'mailbox_id': row['mailbox_id'], 'message_id': row['statement'],
-                            'account': row['account'], 'reason': 'Merchant category needs review: ' + row['merchant']}
+                            'account': row['account'], 'reason': 'Merchant category needs review; amount still counts in spending: ' + row['merchant']}
+    covered_alerts = []
+    for record in records:
+        if record['status'] != 'statement_covered': continue
+        p = record['payload']
+        covered_alerts.extend({'date': row['date'], 'account_key': p['account_key'], 'currency': p['currency'],
+                               'reason': 'Alert covered by a statement period; original evidence retained in the ledger'}
+                              for row in p['transactions'])
     data = {"statements": statements, "rows": rows, "from": from_date or "", "to": to_date or "",
             "generated": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "sync": sync or {}, "schema_version": 4,
-            "review_items": list(reviews.values()), "report_visibility_complete": visibility_supported}
+            "review_items": list(reviews.values()), "covered_alerts": covered_alerts, "report_visibility_complete": visibility_supported}
     # Untrusted merchant/subject strings cannot close the script element.
     encoded = json.dumps(data, ensure_ascii=True).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     opening = '<!-- MONEYLENS_DATA_START -->\n<script id="data" type="application/json">'
@@ -94,11 +101,17 @@ def write_report(db, output=None, from_date=None, to_date=None):
     import tempfile
     from .ledger import assessment, date, records, require
     from .store import get, reviews
+    from .accounting import preferences
     from .alerts import report_records
     from .transactions import manual_records, enrich
     from .personalize import decorate
     from .merchants import entries
     from .private_files import protect
+    prefs = preferences(db)
+    if from_date is None and to_date is None:
+        from_date, to_date = prefs['report_from'], prefs['report_to']
+    else:
+        from_date, to_date = from_date or '', to_date or ''
     if from_date: date(from_date)
     if to_date: date(to_date)
     require(not (from_date and to_date) or from_date <= to_date, 'Report date range reversed')
@@ -130,4 +143,5 @@ def write_report(db, output=None, from_date=None, to_date=None):
         protect(output)
     finally:
         if temporary is not None: temporary.unlink(missing_ok=True)
+    preferences(db, {'report_from': from_date, 'report_to': to_date})
     return {'result':'report_created','output':str(output.resolve()),'statements':len(effective)}

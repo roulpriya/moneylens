@@ -61,7 +61,10 @@ def same_movement(a,b):
 def statement_coverage(payload, all_statements):
     """Period precedence is not a claim that notification and statement rows match."""
     date = payload['transactions'][0]['date']
-    return [s['id'] for s in all_statements if s['status'] in {'draft', 'imported'} and
+    def transaction_section(p):
+        c = p.get('coverage')
+        return not c or next(section for section in c['sections'] if section['id'] == c['section_id']).get('type', 'transactions') == 'transactions'
+    return [s['id'] for s in all_statements if s['status'] in {'draft', 'imported'} and transaction_section(s['payload']) and
             s['payload'].get('account_resolved', True) and
             (s['payload']['account_key'], s['payload']['currency']) == (payload['account_key'], payload['currency']) and
             s['payload']['period_start'] <= date <= s['payload']['period_end']]

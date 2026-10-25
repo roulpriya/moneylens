@@ -107,6 +107,21 @@ class PDFExtractionTests(unittest.TestCase):
             self.assertEqual(result,{'password_unlock':True,'attempts':1})
             self.assertNotIn('EXAM1234',json.dumps(result))
 
+    def test_supplied_candidate_is_reused_from_storage_on_reopened_pdf(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'source.pdf';output=Path(folder)/'extraction.json';self.create(path,'synthetic-correct')
+            backend=FakeStore()
+            with patch('moneylens.credentials.selected',return_value=backend):
+                result=run(self.args(path,output,passwords_from_stdin=True),io.StringIO('{"passwords":["synthetic-correct"]}'))
+            self.assertEqual(backend.calls,[('synthetic-scope',False),('synthetic-scope',True)])
+            self.assertEqual(result['result'],'extracted');self.assertNotIn('synthetic-correct',json.dumps(result))
+            class BrokenStore(FakeStore):
+                def save(self,key,password): pass
+            output.unlink()
+            with patch('moneylens.credentials.selected',return_value=BrokenStore()),self.assertRaisesRegex(Failure,'Setup required'):
+                run(self.args(path,output,passwords_from_stdin=True),io.StringIO('{"passwords":["synthetic-correct"]}'))
+            self.assertFalse(output.exists())
+
     def test_parser_limit_uses_private_unlocked_fallback_without_password_arguments(self):
         from pypdf import PdfReader
         from pypdf.errors import LimitReachedError

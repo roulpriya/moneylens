@@ -24,11 +24,17 @@ def normalize_coverage(p):
         text(page['evidence'], 'page inventory evidence', 1000)
     require(len({v['page'] for v in c['pages']}) == len(c['pages']), 'Repeated coverage page')
     for section in c['sections']:
-        require(isinstance(section, dict) and set(section) == {'id', 'account_key', 'currency', 'pages', 'rows', 'checks', 'evidence'}, 'Invalid section inventory')
+        required = {'id', 'account_key', 'currency', 'pages', 'rows', 'checks', 'evidence'}
+        require(isinstance(section, dict) and required <= set(section) and not set(section) - required - {'type', 'limitations'}, 'Invalid section inventory')
+        require(section.get('type', 'transactions') in {'transactions', 'balance_snapshot'}, 'Invalid section type')
+        limitations = section.get('limitations', [])
+        require(isinstance(limitations, list) and len(limitations) <= 100, 'Invalid section limitations')
+        for limitation in limitations: text(limitation, 'section limitation', 1000)
         for field in ('id', 'account_key', 'currency', 'evidence'):
             text(section[field], 'section.' + field, 1000)
         require(isinstance(section['pages'], list) and section['pages'] and all(type(n) is int and 1 <= n <= c['page_count'] for n in section['pages']), 'Invalid section pages')
         require(isinstance(section['rows'], list) and len(section['rows']) <= 20000, 'Invalid source row inventory')
+        require(section.get('type') != 'balance_snapshot' or not section['rows'], 'Balance snapshots cannot inventory transaction rows')
         for row in section['rows']:
             require(isinstance(row, dict) and not set(row) - {'id', 'page', 'row', 'amount_minor'} and {'id', 'page', 'row'} <= set(row), 'Invalid source row inventory entry')
             text(row['id'], 'source row id'); text(row['row'], 'source row location', 100)
@@ -114,6 +120,9 @@ def _section_assessment(record, all_records):
         if not p['complete']:
             gaps.append('Extractor reports incomplete source reading')
         section = next(s for s in c['sections'] if s['id'] == c['section_id'])
+        if section.get('type') == 'balance_snapshot':
+            gaps.append('Balance snapshot only; no transaction table or dated movements provided')
+        gaps.extend(section.get('limitations', []))
         expected_pages = set(section['pages'])
         read = {v['page'] for v in c['pages'] if v['status'] == 'read'}
         if not expected_pages <= read:
@@ -179,6 +188,10 @@ def assess(record, all_records):
             gaps.append('Unread or unenumerated document pages: ' + ', '.join(map(str,sorted(expected-read))))
         related = [item for item in all_records if document_key(item['payload'])==document_key(p)]
         for observed in manifest['sections']:
+            if observed.get('type') == 'balance_snapshot':
+                gaps.append('Section '+observed['id']+': Balance snapshot only; movement history not provided')
+                gaps.extend('Section '+observed['id']+': '+gap for gap in observed.get('limitations', []))
+                continue
             peers = [item for item in related if item['payload'].get('coverage',{}).get('section_id')==observed['id']]
             if len(peers)!=1:
                 gaps.append('Missing or repeated account/currency section: '+observed['id'])

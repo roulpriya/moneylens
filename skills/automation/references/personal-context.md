@@ -17,6 +17,39 @@ Manual entries can have their description, amount, date, category, and metadata 
 
 For a confirmed own-account transfer on a source-backed row, pass `own_account_key` and `transfer_evidence` together in metadata. Accounting validates that the counterparty is another confirmed owned account and preserves the original row. Amount/date/name similarity alone is insufficient.
 
+## Accounting preferences and report scope
+
+`<moneylens> preferences --data-dir <directory>` reads durable accounting choices.
+Save a partial preferences object using `--input <private-preferences.json>`:
+
+```json
+{
+  "category_treatments": {
+    "Investment": "investment",
+    "Investment withdrawal": "investment_withdrawal"
+  },
+  "report_from": "2026-09-01",
+  "report_to": "2026-10-25"
+}
+```
+
+The category map replaces the previous map when supplied; read and merge it to
+retain other choices. `ordinary` explicitly uses normal movement-kind treatment.
+Only bank-account rows use investment treatment. Labels are user/agent supplied,
+not inferred from descriptions. Preserve separate salary and posted-interest
+categories. Never classify cumulative-interest snapshots as dated credits.
+Principal is visible in Cashflow and All transactions while excluded from
+spending and ordinary money-in metrics. No reciprocal deposit movement or owned
+counterparty is required. Source values and row annotations remain untouched.
+
+Ordinary report refreshes reuse preferences and saved date scope. Explicit report
+bounds replace the scope only after a successful write; empty strings clear it.
+Rolling schedules must pass their newly computed dates. Cashflow and the
+collapsed exclusion audit are built into the report template and survive JSON
+refreshes alongside other views. Private reports keep their existing UI; to
+adopt newly added features, generate this release's report at a new output path,
+verify it, and save that path in account settings. Never hand-edit private HTML.
+
 ## Merchant cache and new classifications
 
 ```sh

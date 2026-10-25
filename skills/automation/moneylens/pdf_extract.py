@@ -95,8 +95,16 @@ def run(args, stream=None):
     if output == path or output.exists(): raise Failure('Output must be a new file separate from the PDF')
     if locked:
         backend = store()
-        unlock(reader, candidates, args.account, args.no_prompt, store=backend)
-    candidates.clear()
+        try:
+            unlock(reader, candidates, args.account, args.no_prompt, store=backend)
+            # Reopen actual bytes and use storage alone to prove unattended reuse.
+            if candidates:
+                reader = PdfReader(path, strict=False)
+                unlock(reader, [], args.account, no_prompt=True, store=backend)
+        finally:
+            candidates.clear()
+    else:
+        candidates.clear()
     if not 1 <= len(reader.pages) <= 100: raise Failure('PDF must contain 1–100 pages')
     texts, method = page_texts(reader, output.parent)
     digest = hashlib.sha256(path.read_bytes()).hexdigest()

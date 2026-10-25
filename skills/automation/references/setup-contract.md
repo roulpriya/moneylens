@@ -47,6 +47,8 @@ The agent maintains nonsecret source/instruction provenance in a private source 
 
 Resume using that inventory and existing settings. Reverify live MCP access and reuse the explicitly authorized mailbox scope for this pull or recurring refreshes; ask only if that scope is missing or ambiguous. Reuse confirmed account and credential choices. The agent controls date windows, pagination, incomplete-search handling, and sources to revisit. Accounting source IDs make repeated supplied inputs idempotent. A successful import/report is not evidence that retrieval completed.
 
+Follow [bounded collection and recovery](collection-progress.md) for per-page pending IDs, atomic checkpoints after each source, a maximum of three in-flight message/attachment reads, bounded retries, and recovery without repeating completed sections. Never advance completed dates after partial retrieval. The progress file contains nonsecret pointers/outcomes only; all raw identity inputs remain transient.
+
 Hand off the selected inventory to the sibling automation skill for the same six-step workflow. The agent checks `merchants` for cached categories, decides cache misses, and supplies classifications to `add` or `import-statement`, then generates `report`. No begin/finish scan commands or retry queues are involved. Unresolved financial rows remain visible accounting review outcomes; inaccessible documents remain agent-owned retrieval gaps. Keep search completion, report delivery, credential readiness, and statement completeness separate.
 
 ## Scheduling through tools
