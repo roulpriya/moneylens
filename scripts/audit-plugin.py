@@ -11,6 +11,7 @@ import stat
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+PLUGIN = ROOT / 'plugins/moneylens'
 ENTRYPOINTS = (
     'skills/automation/scripts/moneylens.py',
     'skills/automation/scripts/pdf_extract.py',
@@ -41,7 +42,7 @@ def local_imports(data, package=False):
 
 
 def purpose(name):
-    if name == 'plugin.json': return 'Plugin identity and host metadata'
+    if name in ('plugin.json', '.claude-plugin/plugin.json'): return 'Plugin identity and host metadata'
     if name == 'assets/moneylens.svg': return 'Required listing and composer icon; static vector asset'
     if name == 'LICENSE': return 'Required MIT license notice'
     if name == 'README.md': return 'Installation and usage information; not executable code'
@@ -50,6 +51,7 @@ def purpose(name):
     if name.endswith('/SKILL.md'): return 'Agent workflow instructions'
     if '/agents/' in name: return 'Skill display metadata'
     if '/references/' in name: return 'Referenced runtime contract or workflow guidance'
+    if name.endswith('/report-fonts.html'): return 'Report fonts and their license notices, inlined into new reports'
     if '/assets/' in name: return 'Self-contained runtime UI with embedded fonts and license notices'
     if name.endswith('.txt'): return 'Pinned runtime installation requirements'
     raise ValueError(f'File has no required package role: {name}')
@@ -73,7 +75,7 @@ def audit(archive, expected):
             mode = item.external_attr >> 16
             if stat.S_ISLNK(mode) or (stat.S_IFMT(mode) and not stat.S_ISREG(mode)):
                 raise ValueError(f'ZIP member is not a regular file: {name}')
-            source = ROOT / name
+            source = PLUGIN / name
             built = ROOT / 'dist/moneylens' / name
             if source.is_symlink() or built.is_symlink() or not source.is_file() or not built.is_file():
                 raise ValueError(f'Missing regular source/bundle file: {name}')

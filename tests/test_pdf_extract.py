@@ -8,7 +8,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'skills/automation'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'plugins/moneylens/skills/automation'))
 from moneylens.private_files import check_private
 from moneylens.pdf_extract import Failure, password_candidates, run, unlock
 

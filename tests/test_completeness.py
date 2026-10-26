@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'skills/automation'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'plugins/moneylens/skills/automation'))
 from moneylens.ledger import connect, records, assessment, normalize, stage, find, save
 from moneylens.processing import process_batch
 from moneylens.store import config_validated, put, get
@@ -150,7 +150,7 @@ class CompletenessTests(unittest.TestCase):
         self.assertTrue(all(r['blocked'] for r in self.data()['rows']))
 
     def test_report_missing_the_required_all_transactions_view_is_rejected(self):
-        template=Path(__file__).resolve().parents[1]/'skills/automation/assets/report-template.html'
+        template=Path(__file__).resolve().parents[1]/'plugins/moneylens/skills/automation/assets/report-template.html'
         original=template.read_text().replace('id="view-all"','id="missing-view-all"').replace('id="transaction-type"','id="missing-transaction-type"')
         (self.root/'report.html').write_text(original)
         with self.assertRaisesRegex(ValueError,'Report generation failed'):self.batch(source_evidence(fixture()))

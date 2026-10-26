@@ -14,7 +14,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('private_setup_server', ROOT / 'skills/setup/scripts/setup_server.py')
+spec = importlib.util.spec_from_file_location('private_setup_server', ROOT / 'plugins/moneylens/skills/setup/scripts/setup_server.py')
 setup = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(setup)
 
@@ -158,7 +158,7 @@ class SetupServerTests(unittest.TestCase):
         self.assertEqual(store.get('verified-scope', True), 'SYNT5678')
         setup.check_private(store.path('verified-scope'))
         # Exercise the existing extraction interface without any new secret input.
-        extracted = subprocess.run([sys.executable, str(ROOT / 'skills/automation/scripts/pdf_extract.py'),
+        extracted = subprocess.run([sys.executable, str(ROOT / 'plugins/moneylens/skills/automation/scripts/pdf_extract.py'),
             '--data-dir', str(self.data_dir), '--input', str(self.pdf), '--output', str(self.output.parent / 'extraction.json'),
             '--account', 'verified-scope', '--no-prompt'], capture_output=True, text=True, timeout=15)
         self.assertEqual(extracted.returncode, 0, extracted.stderr)

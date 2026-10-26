@@ -7,7 +7,7 @@ import sys
 import subprocess
 import tempfile
 import unittest
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'skills/automation'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'plugins/moneylens/skills/automation'))
 from moneylens.ledger import connect, stage, records, assessment, find, save
 from moneylens.store import config_validated, put, get
 from moneylens.processing import process_batch

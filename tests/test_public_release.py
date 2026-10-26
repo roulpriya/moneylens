@@ -8,14 +8,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'skills/automation'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'plugins/moneylens/skills/automation'))
 from moneylens.ledger import SCHEMA_VERSION, connect, normalize, records, source_id
 from moneylens.store import config_validated, save_config
 from moneylens.processing import process_batch
 from test_ledger import fixture
 from coverage_fixtures import observed_statement
 
-SCRIPTS=Path(__file__).resolve().parents[1]/'skills/automation/scripts'
+SCRIPTS=Path(__file__).resolve().parents[1]/'plugins/moneylens/skills/automation/scripts'
 
 
 class PublicReleaseTests(unittest.TestCase):

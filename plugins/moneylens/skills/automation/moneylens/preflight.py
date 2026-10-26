@@ -9,7 +9,7 @@ from .private_files import protect
 def check(data_dir):
     root = Path(__file__).resolve().parents[2]
     files = [root / 'setup/SKILL.md', root / 'automation/SKILL.md',
-             root / 'automation/assets/report-template.html', root / 'automation/scripts/moneylens.py', root / 'automation/scripts/pdf_extract.py',
+             root / 'automation/assets/report-template.html', root / 'automation/assets/report-fonts.html', root / 'automation/scripts/moneylens.py', root / 'automation/scripts/pdf_extract.py',
              Path(__file__).with_name('__init__.py'), Path(__file__).with_name('app.py'), Path(__file__).with_name('transactions.py'),
              *[Path(__file__).with_name(name) for name in ('accounts.py', 'alerts.py', 'ledger.py', 'dashboard.py', 'personalize.py', 'statement_coverage.py', 'pdf_extract.py', 'processing.py', 'store.py', 'credentials.py', 'private_files.py', 'windows_access.py', 'merchants.py', 'transfers.py')]]
     try: skills = all(path.is_file() and bool(path.read_bytes()) for path in files)

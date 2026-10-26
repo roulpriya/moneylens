@@ -12,7 +12,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'skills/automation'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'plugins/moneylens/skills/automation'))
 from moneylens.store import reviews
 from moneylens.private_files import check_private
 from moneylens.accounts import mailbox_id, validate_source
@@ -25,7 +25,7 @@ from moneylens.preflight import check
 from moneylens.store import config_validated, get, put
 from test_ledger import fixture
 
-SCRIPTS = Path(__file__).resolve().parents[1] / 'skills/automation/scripts'
+SCRIPTS = Path(__file__).resolve().parents[1] / 'plugins/moneylens/skills/automation/scripts'
 STAMP = '2026-10-20T09:00:00+05:30'
 
 

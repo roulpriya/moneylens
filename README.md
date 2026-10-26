@@ -7,7 +7,7 @@ A ChatGPT and Codex plugin that turns your bank and card emails into a local spe
 
 ## Install the plugin
 
-MoneyLens includes one setup skill and one automation skill in a portable `plugin.json` package. It runs in a **local agent session** with email MCP and scheduling tools; packaging does not give a cloud-only session access to your local files.
+MoneyLens includes one setup skill and one automation skill in the `plugins/moneylens` folder, which carries both a portable `plugin.json` and a Claude Code manifest at `.claude-plugin/plugin.json`. It runs in a **local agent session** with email MCP and scheduling tools; packaging does not give a cloud-only session access to your local files.
 
 For local testing, clone the repository and register its marketplace:
 
@@ -17,7 +17,7 @@ cd moneylens
 codex plugin marketplace add .
 ```
 
-Reload plugins in your host, open its plugin directory, choose the **MoneyLens** source, and install MoneyLens. The repository's `.agents/plugins/marketplace.json` points to the root plugin. A clean distributable folder is also produced at `dist/moneylens` by the Bun build.
+Reload plugins in your host, open its plugin directory, choose the **MoneyLens** source, and install MoneyLens. The repository's `.agents/plugins/marketplace.json` points to `plugins/moneylens`. In Claude Code, load the folder directly with `claude --plugin-dir plugins/moneylens`. A clean distributable folder is also produced at `dist/moneylens` by the Bun build.
 
 The two skills can still be installed together using the Skills CLI:
 
@@ -41,7 +41,7 @@ dates; `preferences --input <private-preferences.json>` updates them. Successful
 reports retain their date scope for refreshes that omit both bounds. Explicit
 one-sided ranges clear the other bound; empty strings for both clear the scope.
 Rolling schedules should pass fresh dates each run. See
-[accounting preferences](skills/automation/references/personal-context.md).
+[accounting preferences](plugins/moneylens/skills/automation/references/personal-context.md).
 
 The collapsed Accounting treatment and exclusions audit separates validation
 blocks, uncategorized amounts that still count, transfers/repayments, investment
@@ -52,7 +52,7 @@ ordinary refreshes preserve existing private HTML.
 
 Collection uses at most three in-flight message/attachment reads and checkpoints
 nonsecret progress after every durable source result. See the agent's
-[collection recovery protocol](skills/automation/references/collection-progress.md).
+[collection recovery protocol](plugins/moneylens/skills/automation/references/collection-progress.md).
 
 The agent searches and retrieves email through MCP, then supplies local inputs to two scripts. Accounting uses a small money-management interface:
 
@@ -84,11 +84,11 @@ PDF extraction is a separate script:
 ```
 
 Resolve the installed Python 3.10+ executable and absolute automation skill directory
-(`skills/automation` in this checkout), and quote paths/JSON for your shell. Neither
+(`plugins/moneylens/skills/automation` in this checkout), and quote paths/JSON for your shell. Neither
 script pulls data, calls MCP, manages workflow leases/scans/retry queues, or schedules
 jobs. The agent owns those workflow decisions and uses MCP and scheduling tools
 directly. This public release requires its current database and input schemas. Pre-release data formats are rejected without modification; start with a clean data directory. Implementation lives in the internal
-`skills/automation/moneylens` package.
+`plugins/moneylens/skills/automation/moneylens` package.
 
 ## Requirements
 
@@ -96,7 +96,7 @@ The workflow uses local Python helpers and a browser report on macOS, Linux or W
 
 - Private local storage for verified, derived PDF passwords (owner-only permissions or Windows ACLs, plaintext at rest). The agent uses the source's documented recipe and verified identity details, then passes literal candidates to the separate PDF script through transient stdin; no system credential service or separate password-entry dialog is required.
 - Python 3.10 or later. Ledger and configuration helpers use the standard library. PDF extraction uses pypdf/cryptography; no operating-system credential framework is required.
-- Setup uses the installed Python 3.10+ and installs the pinned `skills/automation/scripts/requirements.txt`, including timezone data for systems without it. No compiler is required.
+- Setup uses the installed Python 3.10+ and installs the pinned `plugins/moneylens/skills/automation/scripts/requirements.txt`, including timezone data for systems without it. No compiler is required.
 - Bun 1.4.3 is a development-only build dependency. Installed daily workflows use the committed HTML asset and installed Python.
 - A connected email MCP provider with profile, search, message, and attachment or raw-MIME access.
 - A Codex host exposing the automation scheduling tool for daily updates. Installation alone does not create a schedule or connect an email account.
@@ -127,8 +127,8 @@ The report uses confirmed spending when available; otherwise its headline, categ
 
 | Skill | Purpose |
 | --- | --- |
-| [setup](skills/setup/SKILL.md) | Initial setup, account confirmation, PDF password verification, and schedule creation or repair |
-| [automation](skills/automation/SKILL.md) | Daily or manual sync, alert reconciliation, agent-decided merchant categories, and report updates |
+| [setup](plugins/moneylens/skills/setup/SKILL.md) | Initial setup, account confirmation, PDF password verification, and schedule creation or repair |
+| [automation](plugins/moneylens/skills/automation/SKILL.md) | Daily or manual sync, alert reconciliation, agent-decided merchant categories, and report updates |
 
 Run the skill in the project directory you opened. New installations default to that current directory (`Path.cwd()`), with `report.html`, `ledger.sqlite3`, settings and credentials stored there; Documents is not required. `--data-dir` selects another location. Existing installations keep their saved data directory and report path. Setup passes the resolved absolute data directory to helpers and scheduled refreshes so later working directories cannot redirect the installation. Keep generated private files out of Git. All selected email accounts feed one ledger and report through stable mailbox-specific provenance. The agent supplies the intended report date range, initially the previous calendar month through today; without date flags the script includes all retained history. Account discovery uses a separate 30-day window.
 
@@ -173,15 +173,15 @@ Setup checks inline and attached images for instructions missing from email text
 npm ci
 npm run build
 <python> -m venv .venv
-<venv-python> -m pip install -r skills/automation/scripts/requirements.txt
+<venv-python> -m pip install -r plugins/moneylens/skills/automation/scripts/requirements.txt
 <venv-python> -m unittest discover -s tests -v
 ```
 
 Use an installed Python 3.10+ executable for `<python>` (`python`, `python3` or `py -3`, as available). `<venv-python>` is `.venv/Scripts/python.exe` on Windows or `.venv/bin/python` on POSIX systems. Resolve paths locally and quote them using the current shell; activation is unnecessary. `npm test` prefers this local `.venv`; `MONEYLENS_TEST_PYTHON` can select another interpreter by absolute path.
 
-The report source is `src/report.html`, `src/report.css`, and `src/report.js`, with shared website/report fonts and palette in `src/brand.css`. Font sources and their OFL notices live in `src/fonts`. Bun compiles the CSS and JavaScript and embeds them with the fonts and license notices into one offline artifact at `skills/automation/assets/report-template.html`. Edit the source and regenerate this compiled file; do not hand-edit the skill's HTML asset. The bounded JSON data markers remain the only daily-update boundary. Existing private reports retain their appearance on refresh; generate a new report at a new output path to use the new compiled template.
+The report source is `src/report.html`, `src/report.css`, and `src/report.js`, with shared website/report fonts and palette in `src/brand.css`. Font sources and their OFL notices live in `src/fonts`. Bun compiles the CSS and JavaScript into `plugins/moneylens/skills/automation/assets/report-template.html` and writes the fonts with their license notices to `report-fonts.html` beside it, keeping each file small enough for plugin directory review. A new report inlines the fonts at the template's `MONEYLENS_FONTS` marker, so every generated report is still one offline file. Edit the source and regenerate these compiled files; do not hand-edit the skill's HTML assets. The bounded JSON data markers remain the only daily-update boundary. Existing private reports retain their appearance on refresh; generate a new report at a new output path to use the new compiled template.
 
-With Bun installed, use `bun run build:report` to regenerate the skill template, `bun run check:report` to verify it matches its source without writing, or `bun run build` to compile and package the complete plugin. After `npm ci`, the corresponding `npm run` commands use the repository-pinned Bun executable. The distributable `dist/moneylens` uses an explicit file allowlist for the manifest, both skills and their maintained runtime files, README, and license. It ships the compiled template with embedded fonts; source CSS, font files, build dependencies, runtime data, and unlisted files are excluded. Installed workflows need Python but do not need Bun or a font service.
+With Bun installed, use `bun run build:report` to regenerate the skill template, `bun run check:report` to verify it matches its source without writing, or `bun run build` to compile and package the complete plugin. After `npm ci`, the corresponding `npm run` commands use the repository-pinned Bun executable. The distributable `dist/moneylens` uses an explicit file allowlist for the manifest, both skills and their maintained runtime files, README, and license. It ships the compiled template and its fonts; source CSS, font files, build dependencies, runtime data, and unlisted files are excluded. Installed workflows need Python but do not need Bun or a font service.
 
 Tests use synthetic records, temporary directories, and fake credential stores. PDF tests cover encrypted and unprotected documents without live email access or system credential services. CI is configured to run on macOS, Linux and Windows, test the Python interface and both report suites, exercise the built plugin, and verify the committed HTML asset.
 
@@ -197,7 +197,7 @@ MoneyLens covers bank-account email statements (PDF and actual inline statement 
 
 ### Statement completeness
 
-New bank/card statement imports require a versioned page/section/source-row manifest and reconciliation of every available independently stated count, total and balance. Every source occurrence remains a retained transaction, a proven duplicate link or a visible unresolved review row. Transfers and repayments retain both account entries outside spending; generic credits are not assumed income or refunds. All transactions exposes complete retained history by currency, including positive bank repayments and unresolved rows. Every account/currency section must meet its own source-evidence checks, including sections already imported. A reconciled section can be used even when another section of the same PDF is incomplete; document completeness remains unverified and its gaps stay in Review. Balance and cumulative-interest summaries never become invented withdrawals or dated interest postings. Search completion, report delivery and financial review have separate states. See `skills/automation/references/ledger-contract.md` for schema and evidence boundaries.
+New bank/card statement imports require a versioned page/section/source-row manifest and reconciliation of every available independently stated count, total and balance. Every source occurrence remains a retained transaction, a proven duplicate link or a visible unresolved review row. Transfers and repayments retain both account entries outside spending; generic credits are not assumed income or refunds. All transactions exposes complete retained history by currency, including positive bank repayments and unresolved rows. Every account/currency section must meet its own source-evidence checks, including sections already imported. A reconciled section can be used even when another section of the same PDF is incomplete; document completeness remains unverified and its gaps stay in Review. Balance and cumulative-interest summaries never become invented withdrawals or dated interest postings. Search completion, report delivery and financial review have separate states. See `plugins/moneylens/skills/automation/references/ledger-contract.md` for schema and evidence boundaries.
 
 Completeness is provider-neutral; mailbox access and routing must be verified through the connected email MCP provider. Provider-specific examples do not establish support for other connectors, and custom OAuth is not an access fallback. Password derivation uses an observed issuer recipe and verified attributes; missing birthdate inputs must be requested, never guessed. Building the plugin does not modify private reports.
 

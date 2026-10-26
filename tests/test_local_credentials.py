@@ -12,14 +12,14 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'skills/automation'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'plugins/moneylens/skills/automation'))
 from moneylens.private_files import check_private
 from moneylens.credentials import PrivateFiles, selected
 from moneylens.ledger import connect
 from moneylens.pdf_extract import Failure, password_candidates, run
 from moneylens.store import config_validated, put
 
-SCRIPTS = Path(__file__).resolve().parents[1] / 'skills/automation/scripts'
+SCRIPTS = Path(__file__).resolve().parents[1] / 'plugins/moneylens/skills/automation/scripts'
 STAMP = '2026-10-24T00:30:00+05:30'
 
 

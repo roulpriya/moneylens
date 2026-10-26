@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'skills/automation'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'plugins/moneylens/skills/automation'))
 from moneylens.ledger import connect, normalize
 from moneylens.store import config_validated, save_config
 from moneylens.transactions import add

@@ -6,7 +6,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'skills/automation'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'plugins/moneylens/skills/automation'))
 from moneylens.ledger import connect, records
 from moneylens.processing import process_batch
 from moneylens.store import get, put, save_config, reviews
@@ -77,7 +77,7 @@ class ProcessingBoundaryTests(unittest.TestCase):
 
     def test_concurrent_supplied_notification_adds_count_once_without_workflow_leases(self):
         import subprocess
-        command=[sys.executable,str(Path(__file__).resolve().parents[1]/'skills/automation/scripts/moneylens.py'),
+        command=[sys.executable,str(Path(__file__).resolve().parents[1]/'plugins/moneylens/skills/automation/scripts/moneylens.py'),
             'add','--currency','INR','--currency-exponent','2','--kind','purchase','--data-dir',str(self.root),'--description','Coffee','--amount','120','--date','2026-10-24',
             '--account','test-card-a','--category','Dining','--metadata',json.dumps({'source':{'mailbox':'synthetic-test','message_id':'same-notice'}})]
         children=[subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True) for _ in range(2)]

@@ -74,17 +74,18 @@ class PackagedReleaseTests(unittest.TestCase):
 
     @unittest.skipUnless(BUN.is_file(),'Install build dependencies with npm ci first')
     def test_package_allowlist_excludes_private_state_and_retired_helpers(self):
-        (self.plugin/'scripts').mkdir()
-        shutil.copy2(ROOT/'scripts/package-plugin.ts',self.plugin/'scripts/package-plugin.ts')
+        repo=self.root/'repository';shutil.copytree(self.plugin,repo/'plugins/moneylens')
+        (repo/'scripts').mkdir()
+        shutil.copy2(ROOT/'scripts/package-plugin.ts',repo/'scripts/package-plugin.ts')
         unlisted=['skills/automation/source-inventory.json','skills/automation/scripts/retired.py',
                   'skills/automation/assets/private-report.html','skills/retired/SKILL.md',
                   'skills/automation/moneylens/__pycache__/orphan.pyc']
         for name in unlisted:
-            path=self.plugin/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text('synthetic private state')
-        result=subprocess.run([str(BUN),str(self.plugin/'scripts/package-plugin.ts')],cwd=self.plugin,
+            path=repo/'plugins/moneylens'/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text('synthetic private state')
+        result=subprocess.run([str(BUN),str(repo/'scripts/package-plugin.ts')],cwd=repo,
                               capture_output=True,text=True,timeout=30)
         self.assertEqual(result.returncode,0,result.stderr)
-        release=self.plugin/'dist/moneylens'
+        release=repo/'dist/moneylens'
         for name in unlisted:self.assertFalse((release/name).exists(),name)
         self.assertTrue((release/'skills/automation/scripts/moneylens.py').is_file())
         self.assertTrue((release/'skills/setup/SKILL.md').is_file())

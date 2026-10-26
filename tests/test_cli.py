@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS = ROOT / 'skills/automation/scripts'
+SCRIPTS = ROOT / 'plugins/moneylens/skills/automation/scripts'
 COMMANDS = ('add', 'list', 'update', 'remove', 'import-statement', 'report', 'accounts', 'merchants')
 
 
@@ -130,12 +130,14 @@ class CommandInterfaceTests(unittest.TestCase):
 
     def test_relocated_plugin_has_no_repository_import_dependency(self):
         bundle = self.root / 'relocated plugin'
-        shutil.copytree(ROOT / 'skills', bundle / 'skills', ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+        shutil.copytree(ROOT / 'plugins/moneylens/skills', bundle / 'skills', ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
         scripts = bundle / 'skills/automation/scripts'
         options = ('--data-dir', str(self.data))
         self.output('add', *options, '--description', 'Groceries', '--amount', '50', '--date', '2026-10-24', '--category','Groceries', scripts=scripts)
         result = self.output('report', *options, scripts=scripts)
         report = Path(result['output']); html = report.read_text()
+        self.assertEqual(html.count('data:font/woff2;base64,'), 3)
+        self.assertNotIn('<!-- MONEYLENS_FONTS -->', html)
         report.write_text(html + '\n<!-- custom layout -->')
         self.output('report', *options, scripts=scripts)
         self.assertIn('<!-- custom layout -->', report.read_text())

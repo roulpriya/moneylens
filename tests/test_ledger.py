@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'skills/automation'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'plugins/moneylens/skills/automation'))
 from coverage_fixtures import observed_statement
 from moneylens.ledger import connect, stage, records, find, import_record, assessment
 from moneylens.private_files import check_private

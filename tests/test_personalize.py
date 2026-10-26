@@ -6,7 +6,7 @@ import sys
 import tempfile
 import unittest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'skills/automation'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'plugins/moneylens/skills/automation'))
 from moneylens.ledger import connect, normalize, records, semantic_key, stage
 from moneylens.personalize import annotate, decorate
 from moneylens.merchants import remember
