@@ -74,7 +74,7 @@ class PublicReleaseTests(unittest.TestCase):
         self.assertFalse((SCRIPTS.parent/'moneylens/migrate_storage.py').exists())
 
     def test_internal_modules_have_no_secondary_command_interfaces(self):
-        for name in ('ledger','store','processing','transfers','preflight'):
+        for name in ('ledger','store','processing','transfers'):
             with self.subTest(module=name):
                 module=__import__('moneylens.'+name,fromlist=['main'])
                 self.assertFalse(hasattr(module,'main'))

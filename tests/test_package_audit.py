@@ -13,18 +13,17 @@ audit_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audit_module)
 
 
-@unittest.skipUnless((ROOT / 'dist/moneylens-files.json').is_file(), 'Build the plugin first')
 class PackageAuditTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.archive = Path(self.temp.name) / 'review.zip'
-        self.expected = json.loads((ROOT / 'dist/moneylens-files.json').read_text())
+        self.expected = json.loads(audit_module.ALLOWLIST.read_text())
 
     def create(self, changed=None, symlink=None, extra=None):
         with zipfile.ZipFile(self.archive, 'w', compression=zipfile.ZIP_DEFLATED) as bundle:
             for name in self.expected:
-                data = (ROOT / 'dist/moneylens' / name).read_bytes()
+                data = (audit_module.PLUGIN / name).read_bytes()
                 if changed == name:
                     data = (b'#' if data[:1] != b'#' else b'!') + data[1:]
                 entry = zipfile.ZipInfo(name)

@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
-"""Check local accounting, private storage, and PDF processing capabilities."""
+"""Check local accounting, private storage, and PDF processing capabilities. Development-only; never included in the plugin."""
 import importlib.util
 from pathlib import Path
+import sys
 import tempfile
-from .private_files import protect
+
+SKILLS = Path(__file__).resolve().parents[1] / 'plugins/moneylens/skills'
+sys.path.insert(0, str(SKILLS / 'automation'))
+from moneylens.private_files import protect
 
 
 def check(data_dir):
-    root = Path(__file__).resolve().parents[2]
-    files = [root / 'setup/SKILL.md', root / 'automation/SKILL.md',
-             root / 'automation/assets/report-template.html', root / 'automation/assets/report-fonts.html', root / 'automation/scripts/moneylens.py', root / 'automation/scripts/pdf_extract.py',
-             Path(__file__).with_name('__init__.py'), Path(__file__).with_name('app.py'), Path(__file__).with_name('transactions.py'),
-             *[Path(__file__).with_name(name) for name in ('accounts.py', 'alerts.py', 'ledger.py', 'dashboard.py', 'personalize.py', 'statement_coverage.py', 'pdf_extract.py', 'processing.py', 'store.py', 'credentials.py', 'private_files.py', 'windows_access.py', 'merchants.py', 'transfers.py')]]
+    package = SKILLS / 'automation/moneylens'
+    files = [SKILLS / 'setup/SKILL.md', SKILLS / 'automation/SKILL.md',
+             SKILLS / 'automation/assets/report-template.html', SKILLS / 'automation/assets/report-fonts.html', SKILLS / 'automation/scripts/moneylens.py', SKILLS / 'automation/scripts/pdf_extract.py',
+             package / '__init__.py', package / 'app.py', package / 'transactions.py',
+             *[package / name for name in ('accounts.py', 'alerts.py', 'ledger.py', 'dashboard.py', 'personalize.py', 'statement_coverage.py', 'pdf_extract.py', 'processing.py', 'store.py', 'credentials.py', 'private_files.py', 'windows_access.py', 'merchants.py', 'transfers.py')]]
     try: skills = all(path.is_file() and bool(path.read_bytes()) for path in files)
     except OSError: skills = False
     writable = False
@@ -39,7 +43,7 @@ def check(data_dir):
         pdf = bool(reader.decrypt('synthetic-preflight') and 'MoneyLens preflight' in reader.pages[0].extract_text())
     credential_storage = False
     try:
-        from .credentials import PrivateFiles
+        from moneylens.credentials import PrivateFiles
         PrivateFiles(data_dir / 'credentials')
         credential_storage = True
     except (OSError, ValueError): pass

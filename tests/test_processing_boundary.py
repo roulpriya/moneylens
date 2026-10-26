@@ -1,5 +1,6 @@
 """Accounting consumes supplied inputs without touching collection or scheduler state."""
 import copy
+import importlib.util
 import json
 from pathlib import Path
 import sys
@@ -50,7 +51,8 @@ class ProcessingBoundaryTests(unittest.TestCase):
         with self.assertRaises(ValueError): remove(self.db,current[0]['id'])
 
     def test_reports_do_not_require_mailbox_or_scheduler_access(self):
-        from moneylens.preflight import check
+        spec=importlib.util.spec_from_file_location('moneylens_preflight',Path(__file__).resolve().parents[1]/'scripts/preflight.py')
+        preflight=importlib.util.module_from_spec(spec);spec.loader.exec_module(preflight);check=preflight.check
         with patch('socket.create_connection', side_effect=AssertionError('No network')):
             result=check(self.root)
         self.assertNotIn('gmail_accounts',result); self.assertNotIn('scheduler_available',result)

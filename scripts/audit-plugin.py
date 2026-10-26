@@ -12,6 +12,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / 'plugins/moneylens'
+ALLOWLIST = ROOT / 'scripts/plugin-files.json'
 ENTRYPOINTS = (
     'skills/automation/scripts/moneylens.py',
     'skills/automation/scripts/pdf_extract.py',
@@ -76,15 +77,14 @@ def audit(archive, expected):
             if stat.S_ISLNK(mode) or (stat.S_IFMT(mode) and not stat.S_ISREG(mode)):
                 raise ValueError(f'ZIP member is not a regular file: {name}')
             source = PLUGIN / name
-            built = ROOT / 'dist/moneylens' / name
-            if source.is_symlink() or built.is_symlink() or not source.is_file() or not built.is_file():
-                raise ValueError(f'Missing regular source/bundle file: {name}')
+            if source.is_symlink() or not source.is_file():
+                raise ValueError(f'Missing regular plugin file: {name}')
             source_data = source.read_bytes()
             if item.file_size != len(source_data) or item.file_size > 16 * 1024 * 1024:
                 raise ValueError(f'Unexpected file size: {name}')
             data = bundle.read(item)
-            if data != source_data or data != built.read_bytes():
-                raise ValueError(f'ZIP differs from current source or bundle: {name}')
+            if data != source_data:
+                raise ValueError(f'ZIP differs from current source: {name}')
             contents[name] = data
             inventory.append({'path': name, 'bytes': len(data), 'sha256': digest(data), 'purpose': purpose(name)})
 
@@ -135,7 +135,7 @@ def audit(archive, expected):
         'python_files': len(allowed_python), 'total_uncompressed_bytes': sum(item['bytes'] for item in inventory),
         'checks': ['Exact explicit allowlist', 'No unexpected code modules', 'No development or private data files',
                    'All entry-point imports present', 'Packaged skill links resolve', 'Empty report and setup data',
-                   'No duplicate, traversing, linked or special-file members', 'Every byte matches source and built folder'],
+                   'No duplicate, traversing, linked or special-file members', 'Every byte matches the plugin folder'],
         'submission_status': 'Review artifact only; branding, description, legal review and explicit user approval required before any submission',
         'inventory': sorted(inventory, key=lambda item: item['path']),
     }
@@ -147,13 +147,13 @@ def main():
     parser.add_argument('--create', action='store_true', help='Create a new review ZIP; never overwrite an existing archive')
     parser.add_argument('--report', required=True, type=Path)
     args = parser.parse_args()
-    expected = json.loads((ROOT / 'dist/moneylens-files.json').read_text())
+    expected = json.loads(ALLOWLIST.read_text())
     if len(expected) != len(set(expected)): raise ValueError('Duplicate build allowlist entries')
     archive = args.zip.absolute()
     if args.create:
         with zipfile.ZipFile(archive, 'x', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as bundle:
             for name in sorted(expected):
-                bundle.write(ROOT / 'dist/moneylens' / name, arcname=name)
+                bundle.write(PLUGIN / name, arcname=name)
     report = audit(archive, expected)
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2) + '\n')

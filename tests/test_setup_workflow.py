@@ -21,7 +21,9 @@ from moneylens.credentials import PrivateFiles, selected
 from moneylens.ledger import connect, records, stage, save, find, semantic_key
 from moneylens.processing import process_batch
 from moneylens.personalize import decorate, annotate
-from moneylens.preflight import check
+preflight_spec = importlib.util.spec_from_file_location('moneylens_preflight', Path(__file__).resolve().parents[1] / 'scripts/preflight.py')
+preflight = importlib.util.module_from_spec(preflight_spec); preflight_spec.loader.exec_module(preflight)
+check = preflight.check
 from moneylens.store import config_validated, get, put
 from test_ledger import fixture
 
