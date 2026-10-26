@@ -5,6 +5,16 @@ import json
 from pathlib import Path
 
 
+def _template():
+    """Join the template and its separately shipped fonts into one offline page."""
+    assets = Path(__file__).resolve().parents[1] / "assets"
+    template = (assets / "report-template.html").read_text(encoding='utf-8')
+    marker = '<!-- MONEYLENS_FONTS -->'
+    if template.count(marker) != 1:
+        raise ValueError("Report template has no unique font marker")
+    return template.replace(marker, (assets / "report-fonts.html").read_text(encoding='utf-8').rstrip('\n'))
+
+
 def render(records, from_date=None, to_date=None, existing=None, sync=None):
     statements, rows = [], []
     for record in records:
@@ -84,7 +94,7 @@ def render(records, from_date=None, to_date=None, existing=None, sync=None):
     encoded = json.dumps(data, ensure_ascii=True).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     opening = '<!-- MONEYLENS_DATA_START -->\n<script id="data" type="application/json">'
     closing = '</script>\n<!-- MONEYLENS_DATA_END -->'
-    original = existing if existing is not None else (Path(__file__).resolve().parents[1] / "assets/report-template.html").read_text(encoding='utf-8')
+    original = existing if existing is not None else _template()
     if '<meta name="moneylens-template-version" content="4">' not in original:
         raise ValueError("Unsupported report template. Generate this release's report at a new output path.")
     if not visibility_supported: raise ValueError('Unsupported report template: All transactions view is required')

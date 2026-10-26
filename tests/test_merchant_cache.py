@@ -6,7 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'skills/automation'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'plugins/moneylens/skills/automation'))
 from moneylens.ledger import connect, records, normalize
 from moneylens.store import save_config
 from moneylens.transactions import add, update, list_transactions
@@ -15,7 +15,7 @@ from moneylens.processing import process_batch
 from test_ledger import fixture
 from coverage_fixtures import observed_statement
 
-SCRIPT=Path(__file__).resolve().parents[1]/'skills/automation/scripts/moneylens.py'
+SCRIPT=Path(__file__).resolve().parents[1]/'plugins/moneylens/skills/automation/scripts/moneylens.py'
 
 
 class MerchantCacheTests(unittest.TestCase):

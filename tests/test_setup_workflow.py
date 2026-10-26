@@ -12,7 +12,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'skills/automation'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'plugins/moneylens/skills/automation'))
 from moneylens.store import reviews
 from moneylens.private_files import check_private
 from moneylens.accounts import mailbox_id, validate_source
@@ -21,11 +21,10 @@ from moneylens.credentials import PrivateFiles, selected
 from moneylens.ledger import connect, records, stage, save, find, semantic_key
 from moneylens.processing import process_batch
 from moneylens.personalize import decorate, annotate
-from moneylens.preflight import check
 from moneylens.store import config_validated, get, put
 from test_ledger import fixture
 
-SCRIPTS = Path(__file__).resolve().parents[1] / 'skills/automation/scripts'
+SCRIPTS = Path(__file__).resolve().parents[1] / 'plugins/moneylens/skills/automation/scripts'
 STAMP = '2026-10-20T09:00:00+05:30'
 
 
@@ -111,12 +110,6 @@ class SetupWorkflowTests(unittest.TestCase):
         path.unlink(); target = self.root/'target'; target.write_text('synthetic')
         os.link(target, path)
         with self.assertRaises(ValueError): store.get('scope', True)
-
-    def test_preflight_checks_only_local_processing_capabilities(self):
-        result = check(self.root)
-        self.assertTrue(result['skill_files']); self.assertTrue(result['writable_storage'])
-        self.assertNotIn('gmail_accounts', result); self.assertNotIn('scheduler_available', result)
-        self.assertEqual(result['ready'], result['pdf_extraction'] and result['credential_storage'])
 
     def test_batch_reports_once_and_rejects_unconfirmed_mailbox(self):
         result = process_batch(self.root, [{'type':'statement','payload':self.payload()}, {'type':'statement','payload':self.payload('mail-b')}])

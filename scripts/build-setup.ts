@@ -30,7 +30,7 @@ const source = await Bun.file(resolve(root, 'src/setup.html')).text();
 const html = source.replace('<!-- SETUP_STYLES -->', `<style>\n${css}</style>`)
   .replace('<!-- SETUP_SCRIPT -->', `<script>\n${js.replaceAll('</script', '<\\/script')}</script>`);
 if (/<(?:script|link|img)\b[^>]*(?:src|href)\s*=/i.test(html)) throw new Error('Setup must be self-contained');
-const destination = resolve(root, 'skills/setup/assets/setup.html');
+const destination = resolve(root, 'plugins/moneylens/skills/setup/assets/setup.html');
 if (Bun.argv.includes('--check')) {
   if (await Bun.file(destination).text() !== html) throw new Error('Setup template is stale; run npm run build:setup');
   console.log('Compiled setup template matches its source.');

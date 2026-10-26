@@ -6,7 +6,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'skills/automation'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'plugins/moneylens/skills/automation'))
 from moneylens.ledger import connect, records
 from moneylens.processing import process_batch
 from moneylens.store import get, put, save_config, reviews
@@ -49,13 +49,6 @@ class ProcessingBoundaryTests(unittest.TestCase):
         with self.assertRaises(ValueError): update(self.db,current[0]['id'],{'amount':'999'})
         with self.assertRaises(ValueError): remove(self.db,current[0]['id'])
 
-    def test_reports_do_not_require_mailbox_or_scheduler_access(self):
-        from moneylens.preflight import check
-        with patch('socket.create_connection', side_effect=AssertionError('No network')):
-            result=check(self.root)
-        self.assertNotIn('gmail_accounts',result); self.assertNotIn('scheduler_available',result)
-        self.assertEqual(result['ready'],result['skill_files'] and result['pdf_extraction'] and result['credential_storage'])
-
     def test_failed_statement_produces_local_financial_review_and_no_retrieval_queue(self):
         p=observed_statement(fixture());p['transactions'][0]['amount_minor']='invalid'
         result=process_batch(self.root,[{'type':'statement','payload':p}],render_report=False)
@@ -77,7 +70,7 @@ class ProcessingBoundaryTests(unittest.TestCase):
 
     def test_concurrent_supplied_notification_adds_count_once_without_workflow_leases(self):
         import subprocess
-        command=[sys.executable,str(Path(__file__).resolve().parents[1]/'skills/automation/scripts/moneylens.py'),
+        command=[sys.executable,str(Path(__file__).resolve().parents[1]/'plugins/moneylens/skills/automation/scripts/moneylens.py'),
             'add','--currency','INR','--currency-exponent','2','--kind','purchase','--data-dir',str(self.root),'--description','Coffee','--amount','120','--date','2026-10-24',
             '--account','test-card-a','--category','Dining','--metadata',json.dumps({'source':{'mailbox':'synthetic-test','message_id':'same-notice'}})]
         children=[subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True) for _ in range(2)]

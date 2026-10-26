@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 
 SCRIPTS = Path(os.environ.get('MONEYLENS_TEST_SCRIPTS',
-    str(Path(__file__).resolve().parents[1] / 'skills/automation/scripts')))
+    str(Path(__file__).resolve().parents[1] / 'plugins/moneylens/skills/automation/scripts')))
 sys.path.insert(0, str(SCRIPTS.parent))
 from moneylens.merchants import remember, lookup
 from moneylens import personalize

@@ -1,6 +1,8 @@
 import { basename, extname, resolve } from 'node:path';
 const root = resolve(import.meta.dir, '..');
 const check = Bun.argv.includes('--check');
+// The skill ships fonts beside the template so each file stays inspectable; reports inline them on first render.
+const fontsMarker = '<!-- MONEYLENS_FONTS -->';
 const outputs = await Promise.all(['js', 'css'].map(async extension => {
   const result = await Bun.build({entrypoints: [resolve(root, `src/report.${extension}`)], target: 'browser',
     ...(extension === 'js' ? {format: 'iife' as const} : {}), minify: false, write: false});
@@ -24,15 +26,18 @@ const outputs = await Promise.all(['js', 'css'].map(async extension => {
       if (!font) throw new Error(`Unbundled report CSS asset: ${reference}`);
       return `url("${font}")`;
     });
-    const notices = await Bun.file(resolve(root, 'src/fonts/OFL.txt')).text();
-    if (notices.includes('*/') || /<\/style/i.test(notices)) throw new Error('Invalid font license comment');
-    bundle = `/* Bundled font licenses\n${notices}\n*/\n${bundle}`;
   }
   return bundle;
 }));
+const [js, styles] = outputs;
+const faces = styles.match(/@font-face\s*\{[^}]*\}\n?/g) ?? [];
+const css = faces.reduce((rest, face) => rest.replace(face, ''), styles);
+if (!faces.length || /data:font\//i.test(css)) throw new Error('Report fonts must be declared with @font-face');
+const notices = await Bun.file(resolve(root, 'src/fonts/OFL.txt')).text();
+if (notices.includes('*/') || /<\/style/i.test(notices)) throw new Error('Invalid font license comment');
+const fonts = `<style>\n/* Bundled font licenses\n${notices}\n*/\n${faces.join('')}</style>\n`;
 const source = await Bun.file(resolve(root, 'src/report.html')).text();
-const [js, css] = outputs;
-const html = source.replace('<!-- REPORT_STYLES -->', `<style>\n${css}</style>`)
+const html = source.replace('<!-- REPORT_STYLES -->', () => `${fontsMarker}\n<style>\n${css}</style>`)
   .replace('<!-- REPORT_SCRIPT -->', `<script>\n${js.replaceAll('</script', '<\\/script')}</script>`);
 const opening = '<!-- MONEYLENS_DATA_START -->\n<script id="data" type="application/json">';
 const closing = '</script>\n<!-- MONEYLENS_DATA_END -->';
@@ -40,11 +45,14 @@ if (html.split(opening).length !== 2 || html.split(closing).length !== 2) throw 
 if (/<(?:script|link|img)\b[^>]*(?:src|href)\s*=/i.test(html)) throw new Error('Report must be self-contained');
 const data = JSON.parse(html.split(opening)[1].split(closing)[0]);
 if (data.rows.length || data.statements.length || Object.keys(data.sync).length) throw new Error('Build input must contain no personal data');
-const destination = resolve(root, 'skills/automation/assets/report-template.html');
+if (html.split(fontsMarker).length !== 2 || /url\(\s*['"]?data:font\//i.test(html)) throw new Error('Report fonts must stay outside the template');
+const assets = resolve(root, 'plugins/moneylens/skills/automation/assets');
+const compiled = {'report-template.html': html, 'report-fonts.html': fonts};
 if (check) {
-  if (await Bun.file(destination).text() !== html) throw new Error('Compiled skill template is stale. Run bun run build:report and commit the regenerated HTML.');
-  console.log('Compiled skill template matches its Bun source.');
+  for (const [name, content] of Object.entries(compiled))
+    if (await Bun.file(resolve(assets, name)).text() !== content) throw new Error(`Compiled skill ${name} is stale. Run bun run build:report and commit the regenerated HTML.`);
+  console.log('Compiled skill template and fonts match their Bun source.');
 } else {
-  await Bun.write(destination, html);
-  console.log('Built the offline skill template with inline JavaScript, CSS, fonts, and font licenses.');
+  for (const [name, content] of Object.entries(compiled)) await Bun.write(resolve(assets, name), content);
+  console.log('Built the offline skill template with inline JavaScript and CSS, and its fonts with their licenses.');
 }

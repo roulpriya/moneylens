@@ -72,7 +72,7 @@ Generic `credit` is incoming money and does not reduce net spending. `debit` con
 
 ## Fixed UI, changing data
 
-`assets/report-template.html` is the committed source of the UI. It is a working empty preview with no account data. First report creation copies its structure and injects ledger data. Later reports replace only JSON inside the unique `MONEYLENS_DATA_START` / `MONEYLENS_DATA_END` block, preserving the rest byte for byte. Untrusted text is JSON-escaped and rendered through `textContent`. No network assets or report-side database mutations exist.
+`assets/report-template.html` is the committed source of the UI. It is a working empty preview with no account data. Its fonts and their licenses ship beside it in `assets/report-fonts.html`. First report creation copies its structure, inlines those fonts at the unique `MONEYLENS_FONTS` marker, and injects ledger data. Later reports replace only JSON inside the unique `MONEYLENS_DATA_START` / `MONEYLENS_DATA_END` block, preserving the rest byte for byte. Untrusted text is JSON-escaped and rendered through `textContent`. No network assets or report-side database mutations exist.
 
 Always pass the configured stable report path. Invalid/missing/duplicate data markers or an unsupported template version cause an error without overwriting the existing file. There is no template upgrade path. Keep the data directory, generated reports, credentials, and extracted files out of Git.
 

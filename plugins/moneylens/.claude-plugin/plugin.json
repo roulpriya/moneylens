@@ -1,0 +1,28 @@
+{
+  "name": "moneylens",
+  "displayName": "MoneyLens",
+  "version": "1.0.0",
+  "description": "Turn financial emails and statements into a local spending report covering spending, money in and transfers.",
+  "author": {
+    "name": "Priyambada Roul",
+    "url": "https://roulpriya.github.io/moneylens/"
+  },
+  "homepage": "https://roulpriya.github.io/moneylens/",
+  "repository": "https://github.com/roulpriya/moneylens",
+  "license": "MIT",
+  "keywords": [
+    "finance",
+    "personal finance",
+    "budget",
+    "expenses",
+    "spending",
+    "statements",
+    "email",
+    "transfers"
+  ],
+  "icon": "./assets/moneylens.svg",
+  "documentationUrl": "https://roulpriya.github.io/moneylens/",
+  "supportUrl": "https://github.com/roulpriya/moneylens/issues",
+  "privacyPolicyUrl": "https://roulpriya.github.io/moneylens/policy.html",
+  "termsOfServiceUrl": "https://roulpriya.github.io/moneylens/terms.html"
+}

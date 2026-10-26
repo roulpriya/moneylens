@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { pythonCommand } from '../scripts/python-command';
 
-const html = readFileSync(new URL('../skills/automation/assets/report-template.html', import.meta.url), 'utf8');
+const html = readFileSync(new URL('../plugins/moneylens/skills/automation/assets/report-template.html', import.meta.url), 'utf8');
+const fontStyles = readFileSync(new URL('../plugins/moneylens/skills/automation/assets/report-fonts.html', import.meta.url), 'utf8');
 class Element {
   children: Element[] = [];
   className = ''; value = ''; hidden = true; colSpan = 0; disabled = false; open = false;
@@ -343,7 +344,10 @@ test('release template contains no user data or external asset dependencies', ()
 });
 
 test('compiled report carries its website fonts and licenses without network dependencies', () => {
-  const css = html.match(/<style>\s*([\s\S]*?)<\/style>/)![1];
+  expect(html.split('<!-- MONEYLENS_FONTS -->')).toHaveLength(2);
+  for (const file of [html, fontStyles]) expect(Buffer.byteLength(file)).toBeLessThan(256 * 1024);
+  const page = html.replace('<!-- MONEYLENS_FONTS -->', fontStyles);
+  const css = [...page.matchAll(/<style>\s*([\s\S]*?)<\/style>/g)].map(match => match[1]).join('\n');
   const urls = [...css.matchAll(/url\(\s*['"]?([^'"\s)]+)/g)].map(match => match[1]);
   expect(urls.every(url=>url.startsWith('data:'))).toBe(true);
   const fonts=urls.filter(url=>url.startsWith('data:font/'));

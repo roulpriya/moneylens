@@ -8,14 +8,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'skills/automation'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'plugins/moneylens/skills/automation'))
 from moneylens.ledger import SCHEMA_VERSION, connect, normalize, records, source_id
 from moneylens.store import config_validated, save_config
 from moneylens.processing import process_batch
 from test_ledger import fixture
 from coverage_fixtures import observed_statement
 
-SCRIPTS=Path(__file__).resolve().parents[1]/'skills/automation/scripts'
+SCRIPTS=Path(__file__).resolve().parents[1]/'plugins/moneylens/skills/automation/scripts'
 
 
 class PublicReleaseTests(unittest.TestCase):
@@ -74,7 +74,7 @@ class PublicReleaseTests(unittest.TestCase):
         self.assertFalse((SCRIPTS.parent/'moneylens/migrate_storage.py').exists())
 
     def test_internal_modules_have_no_secondary_command_interfaces(self):
-        for name in ('ledger','store','processing','transfers','preflight'):
+        for name in ('ledger','store','processing','transfers'):
             with self.subTest(module=name):
                 module=__import__('moneylens.'+name,fromlist=['main'])
                 self.assertFalse(hasattr(module,'main'))
