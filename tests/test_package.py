@@ -1,8 +1,10 @@
 """Exercise the plugin folder outside the repository and reject unlisted files."""
+import ast
 import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -56,9 +58,12 @@ class PackagedReleaseTests(unittest.TestCase):
         listed=self.command('list')
         self.assertEqual(len(listed),4);self.assertNotIn(notice['id'],{r['id'] for r in listed})
         self.assertFalse((self.data/'report.html').exists())
-        report=Path(self.command('report')['output'])
-        payload=json.loads(report.read_text().split('<script id="data" type="application/json">')[1].split('</script>')[0])
+        report=Path(self.command('report')['output']);html=report.read_text()
+        payload=json.loads(html.split('<script id="data" type="application/json">')[1].split('</script>')[0])
         self.assertEqual((payload['schema_version'],len(payload['rows'])),(4,4))
+        self.assertEqual(html.count('data:font/woff2;base64,'),3);self.assertNotIn('<!-- MONEYLENS_FONTS -->',html)
+        report.write_text(html+'\n<!-- custom layout -->');self.command('report')
+        self.assertIn('<!-- custom layout -->',report.read_text())
         self.command('update','--id',row['id'],'--amount','2.50')
         self.command('remove','--id',row['id'])
         self.assertEqual(len(self.command('list')),3)
@@ -81,9 +86,6 @@ class PackagedReleaseTests(unittest.TestCase):
         cache=repo/'plugins/moneylens/skills/automation/moneylens/__pycache__/orphan.pyc'
         cache.parent.mkdir(parents=True,exist_ok=True);cache.write_text('synthetic interpreter cache')
         result=check();self.assertEqual(result.returncode,0,result.stderr)
-        self.assertFalse((repo/'plugins/moneylens/skills/automation/moneylens/preflight.py').exists())
-        self.assertEqual(sorted(p.name for p in (repo/'plugins/moneylens/skills/automation/scripts').glob('*.py')),
-                         ['moneylens.py','pdf_extract.py'])
         unlisted=['skills/automation/source-inventory.json','skills/automation/scripts/retired.py',
                   'skills/automation/assets/private-report.html','skills/retired/SKILL.md']
         for name in unlisted:
@@ -93,6 +95,36 @@ class PackagedReleaseTests(unittest.TestCase):
         for name in unlisted:(repo/'plugins/moneylens'/name).unlink()
         (repo/'plugins/moneylens/LICENSE').unlink()
         result=check();self.assertNotEqual(result.returncode,0);self.assertIn('missing=["LICENSE"]',result.stderr)
+
+    def test_entry_points_reach_every_module_and_skill_links_resolve(self):
+        package=self.plugin/'skills/automation/moneylens'
+        modules={path.stem:path for path in package.glob('*.py')}
+        def imports(path,relative):
+            found=set()
+            for node in ast.walk(ast.parse(path.read_text())):
+                if isinstance(node,ast.ImportFrom) and node.level and relative:
+                    found.update([node.module.split('.')[0]] if node.module else [a.name for a in node.names])
+                elif isinstance(node,ast.ImportFrom) and node.module and node.module.startswith('moneylens.'):
+                    found.add(node.module.split('.')[1])
+                elif isinstance(node,ast.Import):
+                    found.update(a.name.split('.')[1] for a in node.names if a.name.startswith('moneylens.'))
+                elif isinstance(node,ast.Call) and getattr(node.func,'attr',None)=='run_module' and node.args \
+                        and isinstance(node.args[0],ast.Constant) and str(node.args[0].value).startswith('moneylens.'):
+                    found.add(node.args[0].value.split('.')[1])
+            return found
+        entry_points=[self.scripts/'moneylens.py',self.scripts/'pdf_extract.py',self.plugin/'skills/setup/scripts/setup_server.py']
+        pending=set().union(*(imports(path,False) for path in entry_points));reached=set()
+        while pending:
+            name=pending.pop()
+            self.assertIn(name,modules,f'Missing runtime module: {name}')
+            if name not in reached:reached.add(name);pending|=imports(modules[name],True)-reached
+        # Every shipped module must be reachable, so retired helpers cannot linger in the release.
+        self.assertEqual(sorted(modules.keys()-reached-{'__init__'}),[])
+        for page in self.plugin.glob('skills/**/*.md'):
+            for link in re.findall(r'\[[^\]]*\]\(([^)]+)\)',page.read_text()):
+                target=link.split('#')[0]
+                if target and '://' not in target and not target.startswith(('mailto:','<')):
+                    self.assertTrue((page.parent/target).resolve().is_file(),f'{page.relative_to(self.plugin)} -> {link}')
 
 
 if __name__=='__main__':unittest.main()

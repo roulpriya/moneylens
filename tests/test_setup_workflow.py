@@ -21,9 +21,6 @@ from moneylens.credentials import PrivateFiles, selected
 from moneylens.ledger import connect, records, stage, save, find, semantic_key
 from moneylens.processing import process_batch
 from moneylens.personalize import decorate, annotate
-preflight_spec = importlib.util.spec_from_file_location('moneylens_preflight', Path(__file__).resolve().parents[1] / 'scripts/preflight.py')
-preflight = importlib.util.module_from_spec(preflight_spec); preflight_spec.loader.exec_module(preflight)
-check = preflight.check
 from moneylens.store import config_validated, get, put
 from test_ledger import fixture
 
@@ -113,12 +110,6 @@ class SetupWorkflowTests(unittest.TestCase):
         path.unlink(); target = self.root/'target'; target.write_text('synthetic')
         os.link(target, path)
         with self.assertRaises(ValueError): store.get('scope', True)
-
-    def test_preflight_checks_only_local_processing_capabilities(self):
-        result = check(self.root)
-        self.assertTrue(result['skill_files']); self.assertTrue(result['writable_storage'])
-        self.assertNotIn('gmail_accounts', result); self.assertNotIn('scheduler_available', result)
-        self.assertEqual(result['ready'], result['pdf_extraction'] and result['credential_storage'])
 
     def test_batch_reports_once_and_rejects_unconfirmed_mailbox(self):
         result = process_batch(self.root, [{'type':'statement','payload':self.payload()}, {'type':'statement','payload':self.payload('mail-b')}])

@@ -3,7 +3,6 @@ import importlib.util
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -22,8 +21,8 @@ class CommandInterfaceTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.data = self.root / 'private data'
 
-    def invoke(self, command, *args, scripts=SCRIPTS, input=None, pdf=False):
-        prefix = [str(scripts / ('pdf_extract.py' if pdf else 'moneylens.py'))]
+    def invoke(self, command, *args, input=None, pdf=False):
+        prefix = [str(SCRIPTS / ('pdf_extract.py' if pdf else 'moneylens.py'))]
         if command: prefix.append(command)
         if command=='add': prefix += ['--currency','INR','--currency-exponent','2','--kind','purchase']
         environment = os.environ.copy(); environment.pop('PYTHONPATH', None)
@@ -127,21 +126,6 @@ class CommandInterfaceTests(unittest.TestCase):
         self.assertEqual(first['result'], 'extracted'); self.assertEqual(second['result'], 'extracted')
         self.assertTrue(json.loads((self.root/'second.json').read_text())['encrypted'])
         self.assertNotIn('EXAM5678', json.dumps(first)); self.assertNotIn('Example Person', json.dumps(first))
-
-    def test_relocated_plugin_has_no_repository_import_dependency(self):
-        bundle = self.root / 'relocated plugin'
-        shutil.copytree(ROOT / 'plugins/moneylens/skills', bundle / 'skills', ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
-        scripts = bundle / 'skills/automation/scripts'
-        options = ('--data-dir', str(self.data))
-        self.output('add', *options, '--description', 'Groceries', '--amount', '50', '--date', '2026-10-24', '--category','Groceries', scripts=scripts)
-        result = self.output('report', *options, scripts=scripts)
-        report = Path(result['output']); html = report.read_text()
-        self.assertEqual(html.count('data:font/woff2;base64,'), 3)
-        self.assertNotIn('<!-- MONEYLENS_FONTS -->', html)
-        report.write_text(html + '\n<!-- custom layout -->')
-        self.output('report', *options, scripts=scripts)
-        self.assertIn('<!-- custom layout -->', report.read_text())
-        self.assertEqual(self.invoke('--help', scripts=scripts, pdf=True).returncode, 0)
 
 
 if __name__ == '__main__': unittest.main()

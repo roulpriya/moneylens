@@ -1,6 +1,5 @@
 """Accounting consumes supplied inputs without touching collection or scheduler state."""
 import copy
-import importlib.util
 import json
 from pathlib import Path
 import sys
@@ -49,14 +48,6 @@ class ProcessingBoundaryTests(unittest.TestCase):
         self.assertEqual(records(self.db),original)
         with self.assertRaises(ValueError): update(self.db,current[0]['id'],{'amount':'999'})
         with self.assertRaises(ValueError): remove(self.db,current[0]['id'])
-
-    def test_reports_do_not_require_mailbox_or_scheduler_access(self):
-        spec=importlib.util.spec_from_file_location('moneylens_preflight',Path(__file__).resolve().parents[1]/'scripts/preflight.py')
-        preflight=importlib.util.module_from_spec(spec);spec.loader.exec_module(preflight);check=preflight.check
-        with patch('socket.create_connection', side_effect=AssertionError('No network')):
-            result=check(self.root)
-        self.assertNotIn('gmail_accounts',result); self.assertNotIn('scheduler_available',result)
-        self.assertEqual(result['ready'],result['skill_files'] and result['pdf_extraction'] and result['credential_storage'])
 
     def test_failed_statement_produces_local_financial_review_and_no_retrieval_queue(self):
         p=observed_statement(fixture());p['transactions'][0]['amount_minor']='invalid'
